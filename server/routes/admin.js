@@ -12,7 +12,7 @@ const db = require('../db');
 const { requireAdmin } = require('../middleware/auth');
 
 // --- Subida de imágenes de producto ---
-const uploadDir = path.join(__dirname, '..', '..', 'public', 'img', 'products');
+const uploadDir = path.join(__dirname, '..', '..', 'data', 'products');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({
   storage: multer.diskStorage({

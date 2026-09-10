@@ -21,6 +21,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Archivos estáticos (frontend)
+app.use('/img/products', express.static(path.join(__dirname, '..', 'data', 'products')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Rutas API
