@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finalizar compra — Essenza Studio</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/img/logo.jpg">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="site-header" class="site-header"></header>
+
+<div class="container page-header">
+  <div class="eyebrow-line">Essenza Studio</div>
+  <h1 data-i18n="checkout.title"></h1>
+</div>
+
+<div class="container checkout-layout">
+  <div id="checkout-form-section">
+    <div id="checkout-error" class="alert alert-error" style="display:none"></div>
+
+    <h3 data-i18n="checkout.customer_data"></h3>
+    <form id="checkout-form">
+      <div class="form-row-2">
+        <div class="form-field">
+          <label data-i18n="checkout.name"></label>
+          <input type="text" name="name" required>
+        </div>
+        <div class="form-field">
+          <label data-i18n="checkout.phone"></label>
+          <input type="tel" name="phone" required placeholder="+57 300 000 0000">
+        </div>
+      </div>
+      <div class="form-field">
+        <label data-i18n="checkout.email"></label>
+        <input type="email" name="email">
+      </div>
+      <div class="form-row-2">
+        <div class="form-field">
+          <label data-i18n="checkout.address"></label>
+          <input type="text" name="address">
+        </div>
+        <div class="form-field">
+          <label data-i18n="checkout.city"></label>
+          <input type="text" name="city" id="city-input" required placeholder="Rionegro">
+        </div>
+      </div>
+
+      <h3 data-i18n="checkout.shipping_method" style="margin-top:24px"></h3>
+      <input type="hidden" id="shipping-type-input" value="">
+      <div class="shipping-options">
+        <div class="shipping-option" data-type="local_express">
+          <div>
+            <div class="title" data-i18n="checkout.local_express"></div>
+            <div class="desc" data-i18n="checkout.local_express_desc"></div>
+          </div>
+        </div>
+        <div class="shipping-option" data-type="local_pickup">
+          <div>
+            <div class="title" data-i18n="checkout.local_pickup"></div>
+            <div class="desc" data-i18n="checkout.local_pickup_desc"></div>
+          </div>
+        </div>
+        <div class="shipping-option" data-type="nacional">
+          <div>
+            <div class="title" data-i18n="checkout.national"></div>
+            <div class="desc" data-i18n="checkout.national_desc"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-field" id="carrier-select-wrap" style="display:none;margin-top:14px">
+        <label data-i18n="checkout.carrier"></label>
+        <select id="carrier-input">
+          <option value="interrapidisimo">Interrapidísimo</option>
+          <option value="envia">ENVÍA</option>
+        </select>
+      </div>
+
+      <button type="submit" id="pay-button" class="btn btn-magenta btn-block" style="margin-top:24px" disabled>
+        <span data-i18n="checkout.pay_wompi"></span>
+      </button>
+    </form>
+  </div>
+
+  <div class="summary-card" id="checkout-summary-section">
+    <div id="summary-items"></div>
+    <div class="summary-row"><span data-i18n="cart.subtotal"></span><span id="summary-subtotal">$0</span></div>
+    <div class="summary-row"><span data-i18n="checkout.shipping_cost"></span><span id="summary-shipping">$0</span></div>
+    <div class="summary-row total"><span data-i18n="checkout.total"></span><span id="summary-total">$0</span></div>
+  </div>
+</div>
+
+<footer id="site-footer" class="site-footer"></footer>
+
+<script src="/js/app.js"></script>
+<script src="/js/checkout.js"></script>
+</body>
+</html>

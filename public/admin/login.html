@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Essenza Studio</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/img/logo.jpg">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="admin-login-wrap">
+  <div class="admin-login-card">
+    <div class="eyebrow-line">Essenza Studio · Admin</div>
+    <h2>Iniciar sesión</h2>
+    <div id="login-error" class="alert alert-error" style="display:none"></div>
+    <form id="login-form">
+      <div class="form-field">
+        <label>Correo</label>
+        <input type="email" name="email" required autocomplete="username">
+      </div>
+      <div class="form-field">
+        <label>Contraseña</label>
+        <div style="position:relative">
+          <input type="password" id="password-input" name="password" required autocomplete="current-password" style="width:100%;padding-right:40px;box-sizing:border-box">
+          <button type="button" id="toggle-password" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:13px;color:#aaa">Ver</button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+    </form>
+  </div>
+</div>
+<script>
+document.getElementById('toggle-password').addEventListener('click', () => {
+  const input = document.getElementById('password-input');
+  const btn = document.getElementById('toggle-password');
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  btn.textContent = isHidden ? 'Ocultar' : 'Ver';
+});
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const errorBox = document.getElementById('login-error');
+  errorBox.style.display = 'none';
+  try {
+    const res = await fetch('/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.email.value, password: form.password.value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    location.href = '/admin/dashboard.html';
+  } catch (err) {
+    errorBox.textContent = err.message;
+    errorBox.style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>

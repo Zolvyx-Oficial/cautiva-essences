@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de administración — Essenza Studio</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/img/logo.jpg">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <div class="brand-name" style="font-size:1.3rem">Essenza Studio</div>
+    <span class="brand-tagline">Panel admin</span>
+    <nav>
+      <a href="#" data-view="products" class="nav-link active">Productos</a>
+      <a href="#" data-view="orders" class="nav-link">Pedidos</a>
+      <a href="/index.html" target="_blank">Ver tienda ↗</a>
+      <a href="#" id="logout-link">Cerrar sesión</a>
+    </nav>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <h2 id="view-title" style="margin:0">Productos</h2>
+      <button id="new-product-btn" class="btn btn-primary">+ Nuevo producto</button>
+    </div>
+
+    <div id="admin-error" class="alert alert-error" style="display:none"></div>
+
+    <section id="view-products">
+      <table class="data-table">
+        <thead>
+          <tr><th>Producto</th><th>Marca</th><th>Precio detal</th><th>Precio mayor</th><th>Stock</th><th>Estado</th><th></th></tr>
+        </thead>
+        <tbody id="products-tbody"></tbody>
+      </table>
+    </section>
+
+    <section id="view-orders" style="display:none">
+      <table class="data-table">
+        <thead>
+          <tr><th>Referencia</th><th>Cliente</th><th>Ciudad</th><th>Envío</th><th>Total</th><th>Pago</th><th>Fecha</th></tr>
+        </thead>
+        <tbody id="orders-tbody"></tbody>
+      </table>
+    </section>
+  </main>
+</div>
+
+<!-- Modal formulario de producto -->
+<div class="modal-overlay" id="product-modal">
+  <div class="modal-card">
+    <h3 id="modal-title">Nuevo producto</h3>
+    <form id="product-form">
+      <input type="hidden" name="id">
+      <div class="form-grid-2">
+        <div class="form-field"><label>Nombre</label><input name="name" required></div>
+        <div class="form-field"><label>SKU / Referencia</label><input name="sku" required></div>
+        <div class="form-field">
+          <label>Marca</label>
+          <select name="brand_id" required></select>
+        </div>
+        <div class="form-field">
+          <label>Categoría</label>
+          <select name="category_id" required></select>
+        </div>
+        <div class="form-field"><label>Precio detal (COP)</label><input name="price_detal" type="number" required></div>
+        <div class="form-field"><label>Precio por mayor (COP)</label><input name="price_mayor" type="number"></div>
+        <div class="form-field"><label>Mín. unidades mayor</label><input name="mayor_min_qty" type="number" value="6"></div>
+        <div class="form-field"><label>Presentación</label>
+          <div style="display:flex;gap:8px">
+            <input name="presentation_value" type="number" step="0.1" required style="flex:1">
+            <select name="presentation_unit" style="width:80px">
+              <option value="ml">ml</option>
+              <option value="oz">oz</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-field"><label>Peso (gramos)</label><input name="weight_grams" type="number" required></div>
+        <div class="form-field">
+          <label>Estado de inventario</label>
+          <select name="stock_status">
+            <option value="disponible">Disponible</option>
+            <option value="agotado">Agotado</option>
+            <option value="pre-orden">Pre-orden</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Cantidad en stock</label><input name="stock_qty" type="number" value="0"></div>
+      </div>
+      <div class="form-field"><label>Notas de salida</label><input name="notes_salida"></div>
+      <div class="form-field"><label>Notas de corazón</label><input name="notes_corazon"></div>
+      <div class="form-field"><label>Notas de fondo</label><input name="notes_fondo"></div>
+      <div class="form-field"><label>Descripción (ES)</label><textarea name="description_es" rows="2"></textarea></div>
+      <div class="form-field"><label>Descripción (EN)</label><textarea name="description_en" rows="2"></textarea></div>
+      <div class="form-field">
+        <label>Galería de imágenes</label>
+        <input type="file" id="image-input" multiple accept="image/*">
+        <div id="image-preview" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:20px">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="button" id="cancel-modal-btn" class="btn btn-outline">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/admin/admin.js"></script>
+</body>
+</html>
