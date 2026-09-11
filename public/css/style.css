@@ -241,7 +241,8 @@ table.data-table tr:hover { background: rgba(255,255,255,.02); }
   .header-row { flex-wrap: nowrap; gap: 10px; padding: 12px 16px; }
   .brand { min-width: 0; flex: 1; }
   .brand img { height: 30px; }
-  .brand-name { font-size: clamp(0.8rem, 4.2vw, 1.05rem); white-space: nowrap; display: block; }
+  .brand > span { min-width: 0; flex: 1; }
+  .brand-name { font-size: clamp(0.72rem, 3.6vw, 1.05rem); white-space: nowrap; display: block; overflow: hidden; text-overflow: ellipsis; }
   .brand-tagline { display: none; }
   .header-actions { flex-shrink: 0; gap: 8px; }
   .lang-switch button { padding: 5px 8px; font-size: .68rem; }
