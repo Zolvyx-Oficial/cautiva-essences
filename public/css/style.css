@@ -238,4 +238,12 @@ table.data-table tr:hover { background: rgba(255,255,255,.02); }
   .admin-shell { grid-template-columns: 1fr; }
   .admin-sidebar { display: none; }
   .notes-grid { grid-template-columns: 1fr; }
+  .header-row { flex-wrap: nowrap; gap: 10px; padding: 12px 16px; }
+  .brand { min-width: 0; flex: 1; }
+  .brand img { height: 30px; }
+  .brand-name { font-size: clamp(0.8rem, 4.2vw, 1.05rem); white-space: nowrap; display: block; }
+  .brand-tagline { display: none; }
+  .header-actions { flex-shrink: 0; gap: 8px; }
+  .lang-switch button { padding: 5px 8px; font-size: .68rem; }
+  .cart-btn { padding: 6px 10px; font-size: .75rem; gap: 6px; }
 }
