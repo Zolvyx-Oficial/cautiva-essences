@@ -91,7 +91,20 @@ CREATE TABLE IF NOT EXISTS admin_users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id),
+  customer_name TEXT NOT NULL,
+  rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+  comment TEXT,
+  approved INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 `);
+
+// ---------- MIGRACIONES (para bases de datos que ya existen en producción) ----------
+try { db.exec(`ALTER TABLE products ADD COLUMN compare_at_price INTEGER`); } catch (e) { /* ya existe, ignorar */ }
 
 // ---------- SEED ----------
 function seed() {
