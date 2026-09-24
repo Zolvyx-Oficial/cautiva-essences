@@ -9,22 +9,38 @@ const { formatCOP } = require('./whatsapp');
 const LOGO_PATH = path.join(__dirname, '..', '..', 'public', 'img', 'logo.jpg');
 const GOLD = '#D4AF37';
 const CARBON = '#0D0F12';
+const STORE = 'CAUTIVA ESSENCES';
 
 function generateInvoicePDF({ order, items }, res) {
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
+
+  // Si algo falla a mitad del PDF, no queremos que se caiga el servidor entero.
+  doc.on('error', (err) => {
+    console.error('Error generando la factura PDF:', err.message);
+    try { res.end(); } catch (_) {}
+  });
+
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename=factura-${order.reference}.pdf`);
   doc.pipe(res);
 
   // --- Encabezado con logo ---
+  // PDFKit solo acepta JPEG baseline y PNG. Si el logo tiene otro formato
+  // (p. ej. JPEG progresivo o WebP renombrado), seguimos sin logo en vez de romper.
+  let logoOk = false;
   if (fs.existsSync(LOGO_PATH)) {
-    doc.image(LOGO_PATH, 50, 45, { width: 70 });
-    doc.fontSize(20).fillColor(CARBON).text('ESSENZA STUDIO', 130, 50);
-  } else {
-    doc.fontSize(20).fillColor(CARBON).text('ESSENZA STUDIO', 50, 50);
+    try {
+      doc.image(LOGO_PATH, 50, 45, { width: 70 });
+      logoOk = true;
+    } catch (err) {
+      console.warn('No se pudo incluir el logo en la factura (formato no soportado por PDFKit):', err.message);
+    }
   }
-  doc.fontSize(9).fillColor('#555').text('Tu firma invisible', 130, 75);
-  doc.fontSize(9).fillColor('#555').text('Rionegro, Antioquia, Colombia · WhatsApp: +57 319 681 2111', 130, 88);
+
+  const headerX = logoOk ? 130 : 50;
+  doc.fontSize(20).fillColor(CARBON).text(STORE, headerX, 50);
+  doc.fontSize(9).fillColor('#555').text('Tu firma invisible', headerX, 75);
+  doc.fontSize(9).fillColor('#555').text('Rionegro, Antioquia, Colombia · WhatsApp: +57 319 681 2111', headerX, 88);
 
   doc.moveDown(3);
   doc.fillColor(GOLD).fontSize(14).text(`Factura de venta — ${order.reference}`, { align: 'right' });
@@ -74,7 +90,7 @@ function generateInvoicePDF({ order, items }, res) {
 
   doc.moveDown(4);
   doc.fontSize(8).fillColor('#888').text(
-    'Essenza Studio · Perfumería fina · Rionegro, Antioquia, Colombia · Esta factura es un comprobante de venta electrónico.',
+    'Cautiva Essences · Perfumería fina · Rionegro, Antioquia, Colombia · Esta factura es un comprobante de venta electrónico.',
     50, doc.page.height - 80, { align: 'center', width: 495 }
   );
 
