@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Essenza Studio — Comprar perfumes árabes y de nicho en Colombia | Rionegro</title>
+<title>Cautiva Essences — Comprar perfumes árabes y de nicho en Colombia | Rionegro</title>
 <meta name="description" content="Perfumería fina árabe, de nicho y de diseñador en Rionegro, Antioquia. Lattafa, Al Haramain, Orientica, Bharara, Chanel y más. Envíos a toda Colombia. Tu firma invisible.">
 <meta name="keywords" content="perfumes árabes Colombia, perfumes nicho Rionegro, perfumería Antioquia, Lattafa Colombia, Bharara Colombia, comprar perfumes originales">
 <link rel="canonical" href="/index.html">
@@ -11,8 +11,8 @@
 
 <!-- OpenGraph -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Essenza Studio">
-<meta property="og:title" content="Essenza Studio — Tu firma invisible">
+<meta property="og:site_name" content="Cautiva Essences">
+<meta property="og:title" content="Cautiva Essences — Tu firma invisible">
 <meta property="og:description" content="Perfumería fina árabe, de nicho y de diseñador. Despacho desde Rionegro, Antioquia para toda Colombia.">
 <meta property="og:image" content="/img/logo.jpg">
 <meta property="og:locale" content="es_CO">
@@ -23,7 +23,7 @@
 {
   "@context": "https://schema.org",
   "@type": "Store",
-  "name": "Essenza Studio by Diana G",
+  "name": "Cautiva Essences",
   "image": "/img/logo.jpg",
   "description": "Perfumería fina árabe, de nicho y de diseñador con despacho desde Rionegro, Antioquia para toda Colombia.",
   "address": {
@@ -56,7 +56,7 @@
         <source src="/video/hero.mp4" type="video/mp4">
       </video>
       <div class="hero-visual-overlay"></div>
-      <span class="center-mark">Essenza Studio by Diana G</span>
+      <span class="center-mark">Cautiva Essences</span>
       <div class="frame-label">
         <span data-i18n="hero.frame_left"></span>
         <span data-i18n="hero.frame_right"></span>
@@ -80,7 +80,16 @@
         </div>
       </div>
     </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:24px;flex-wrap:wrap">
+      <span style="color:var(--smoke);font-size:.85rem">Precio:</span>
+      <input type="number" id="min-price-input" placeholder="Mín" style="width:100px;background:var(--carbon);border:1px solid var(--carbon-line);border-radius:var(--radius-sm);padding:8px 10px;color:var(--white)">
+      <span style="color:var(--smoke)">–</span>
+      <input type="number" id="max-price-input" placeholder="Máx" style="width:100px;background:var(--carbon);border:1px solid var(--carbon-line);border-radius:var(--radius-sm);padding:8px 10px;color:var(--white)">
+    </div>
     <div class="product-grid" id="product-grid"></div>
+    <div style="text-align:center;margin-top:32px">
+      <button id="load-more-btn" class="btn btn-outline" style="display:none">Cargar más</button>
+    </div>
   </div>
 </section>
 

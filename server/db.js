@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS reviews (
 
 // ---------- MIGRACIONES (para bases de datos que ya existen en producción) ----------
 try { db.exec(`ALTER TABLE products ADD COLUMN compare_at_price INTEGER`); } catch (e) { /* ya existe, ignorar */ }
+try { db.exec(`ALTER TABLE admin_users ADD COLUMN reset_token_hash TEXT`); } catch (e) { /* ya existe, ignorar */ }
+try { db.exec(`ALTER TABLE admin_users ADD COLUMN reset_token_expires TEXT`); } catch (e) { /* ya existe, ignorar */ }
 
 // ---------- SEED ----------
 function seed() {

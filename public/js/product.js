@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!res.ok) { wrap.innerHTML = '<p>Producto no encontrado.</p>'; return; }
   const p = await res.json();
 
-  document.title = `${p.name} — ${p.brand_name} | Essenza Studio`;
+  document.title = `${p.name} — ${p.brand_name} | Cautiva Essences`;
   const metaDesc = document.querySelector('meta[name="description"]');
   if (metaDesc) metaDesc.setAttribute('content', (Essenza.getLang() === 'en' ? p.description_en : p.description_es) || '');
 
@@ -86,4 +86,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   document.head.appendChild(ld);
+
+  // ---- Productos relacionados ----
+  loadRelatedProducts(id);
 });
+
+async function loadRelatedProducts(id) {
+  try {
+    const related = await (await fetch(`/api/products/${id}/related`)).json();
+    if (!related.length) return;
+
+    const section = document.createElement('section');
+    section.className = 'container';
+    section.style.cssText = 'padding:56px 0 96px;border-top:1px solid var(--carbon-line);margin-top:32px';
+    section.innerHTML = `
+      <h2 style="margin-bottom:28px">También te puede gustar</h2>
+      <div class="product-grid">
+        ${related.map(r => {
+          const img = r.images && r.images[0]
+            ? `<img src="${r.images[0]}" alt="${r.name}">`
+            : `<span class="initials">${r.name.slice(0,2).toUpperCase()}</span>`;
+          return `
+            <article class="product-card">
+              <a href="/product.html?id=${r.id}" class="thumb">${img}</a>
+              <div class="info">
+                <span class="brand-label">${r.brand_name || ''}</span>
+                <a href="/product.html?id=${r.id}"><h3>${r.name}</h3></a>
+                <span class="ml">${r.presentation_value}${r.presentation_unit}</span>
+                <div class="price-row"><span class="price">${Essenza.formatCOP(r.price_detal)}</span></div>
+              </div>
+            </article>`;
+        }).join('')}
+      </div>`;
+    document.querySelector('.product-detail').insertAdjacentElement('afterend', section);
+  } catch (err) {
+    console.error('No se pudieron cargar productos relacionados:', err);
+  }
+}

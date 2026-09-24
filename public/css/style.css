@@ -140,6 +140,12 @@ p { color: var(--smoke); max-width: 62ch; }
 .price small { color: var(--smoke); font-size: .7rem; font-family: var(--font-ui); }
 .add-btn { border: 1px solid var(--gold); background: none; color: var(--gold); width: 36px; height: 36px; border-radius: 50%; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
 .add-btn:hover { background: var(--gold); color: var(--carbon); }
+.product-card { position: relative; }
+.fav-btn { position: absolute; top: 10px; right: 10px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--carbon-line); background: rgba(13,15,18,.72); backdrop-filter: blur(4px); color: var(--smoke); font-size: 1.05rem; line-height: 1; display: flex; align-items: center; justify-content: center; transition: color .2s, border-color .2s, transform .15s; }
+.fav-btn:hover { color: var(--magenta-bright); border-color: var(--magenta-bright); }
+.fav-btn:active { transform: scale(.9); }
+.fav-btn.is-fav { color: var(--magenta-bright); border-color: var(--magenta-bright); }
+.cart-count-badge { background: var(--magenta); color: var(--white); font-size: .7rem; font-weight: 700; border-radius: 50%; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
 
 .empty-state { text-align: center; padding: 64px 20px; color: var(--smoke); border: 1px dashed var(--carbon-line); border-radius: var(--radius-md); }
 

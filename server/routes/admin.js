@@ -9,6 +9,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const db = require('../db');
+const crypto = require('crypto');
+const { sendPasswordResetEmail } = require('../utils/email');
 const { requireAdmin } = require('../middleware/auth');
 
 // --- Subida de imágenes de producto ---
@@ -47,6 +49,43 @@ router.post('/logout', (req, res) => {
 
 // GET /admin/me
 router.get('/me', requireAdmin, (req, res) => res.json({ email: req.admin.email }));
+// POST /admin/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  const user = db.prepare('SELECT * FROM admin_users WHERE email = ?').get(email);
+  // Respondemos igual exista o no el correo, para no revelar qué correos están registrados
+  if (user) {
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    db.prepare('UPDATE admin_users SET reset_token_hash = ?, reset_token_expires = ? WHERE id = ?').run(tokenHash, expires, user.id);
+    const resetUrl = `${process.env.APP_URL}/admin/reset-password.html?token=${rawToken}&email=${encodeURIComponent(email)}`;
+    await sendPasswordResetEmail({ email, resetUrl });
+  }
+  res.json({ ok: true, message: 'Si el correo existe, se envió un enlace de recuperación.' });
+});
+
+// POST /admin/reset-password
+router.post('/reset-password', (req, res) => {
+  const { email, token, newPassword } = req.body;
+  if (!newPassword || newPassword.length < 8) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
+  }
+  const user = db.prepare('SELECT * FROM admin_users WHERE email = ?').get(email);
+  if (!user || !user.reset_token_hash || !user.reset_token_expires) {
+    return res.status(400).json({ error: 'Enlace inválido o expirado.' });
+  }
+  if (new Date(user.reset_token_expires) < new Date()) {
+    return res.status(400).json({ error: 'El enlace expiró. Solicita uno nuevo.' });
+  }
+  const tokenHash = crypto.createHash('sha256').update(token || '').digest('hex');
+  if (tokenHash !== user.reset_token_hash) {
+    return res.status(400).json({ error: 'Enlace inválido.' });
+  }
+  const newHash = bcrypt.hashSync(newPassword, 10);
+  db.prepare('UPDATE admin_users SET password_hash = ?, reset_token_hash = NULL, reset_token_expires = NULL WHERE id = ?').run(newHash, user.id);
+  res.json({ ok: true });
+});
 
 // --- A partir de aquí, todas las rutas requieren sesión de admin ---
 router.use(requireAdmin);

@@ -1,5 +1,5 @@
 // public/js/catalog.js
-// Lógica del catálogo: filtros por categoría/marca, búsqueda, alternancia mayorista.
+// Lógica del catálogo: filtros por categoría/precio, búsqueda, mayorista, paginación y favoritos.
 
 document.addEventListener('DOMContentLoaded', async () => {
   Essenza.renderHeader('catalog');
@@ -10,14 +10,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   const chipsWrap = document.getElementById('category-chips');
   const searchInput = document.getElementById('search-input');
   const wholesaleToggle = document.getElementById('wholesale-toggle');
+  const minPriceInput = document.getElementById('min-price-input');
+  const maxPriceInput = document.getElementById('max-price-input');
+  const loadMoreBtn = document.getElementById('load-more-btn');
+
+  const PAGE_SIZE = 12;
 
   const urlParams = new URLSearchParams(location.search);
   let state = {
     category: urlParams.get('category') || '',
     q: '',
-    wholesale: urlParams.get('mayorista') === '1'
+    wholesale: urlParams.get('mayorista') === '1',
+    minPrice: '',
+    maxPrice: '',
+    offset: 0
   };
   wholesaleToggle.checked = state.wholesale;
+
+  let allLoadedProducts = [];
 
   const categories = await (await fetch('/api/categories')).json();
 
@@ -29,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       chip.addEventListener('click', () => {
         state.category = chip.dataset.slug;
         renderChips();
-        loadProducts();
+        loadProducts(false);
       });
     });
   }
@@ -44,9 +54,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? `${Essenza.formatCOP(p.price_mayor)} <small>x${p.mayor_min_qty}+ ${Essenza.t('product.units')}</small>`
       : Essenza.formatCOP(p.price_detal);
 
+    const fav = Essenza.isInWishlist(p.id);
+
     return `
       <article class="product-card">
         <a href="/product.html?id=${p.id}" class="thumb">${img}${badge}</a>
+        <button class="fav-btn ${fav ? 'is-fav' : ''}" data-fav-id="${p.id}" aria-label="Agregar a favoritos" title="Agregar a favoritos">${fav ? '♥' : '♡'}</button>
         <div class="info">
           <span class="brand-label">${p.brand_name || ''}</span>
           <a href="/product.html?id=${p.id}"><h3>${p.name}</h3></a>
@@ -59,37 +72,81 @@ document.addEventListener('DOMContentLoaded', async () => {
       </article>`;
   }
 
-  async function loadProducts() {
-    const params = new URLSearchParams();
-    if (state.category) params.set('category', state.category);
-    if (state.q) params.set('q', state.q);
-    if (state.wholesale) params.set('mayorista', '1');
-    const products = await (await fetch(`/api/products?${params}`)).json();
-
-    if (products.length === 0) {
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">${Essenza.t('catalog.empty')}</div>`;
-      return;
-    }
-    grid.innerHTML = products.map(productCard).join('');
+  function bindCardButtons() {
     grid.querySelectorAll('.add-btn').forEach(btn => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
       btn.addEventListener('click', () => {
-        const product = products.find(p => p.id == btn.dataset.id);
+        const product = allLoadedProducts.find(p => p.id == btn.dataset.id);
         Essenza.addToCart(product, 1);
         btn.textContent = '✓';
         setTimeout(() => btn.textContent = '+', 900);
       });
     });
+
+    grid.querySelectorAll('.fav-btn').forEach(btn => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => {
+        const product = allLoadedProducts.find(p => p.id == btn.dataset.favId);
+        const added = Essenza.toggleWishlist(product);
+        btn.classList.toggle('is-fav', added);
+        btn.textContent = added ? '♥' : '♡';
+      });
+    });
+  }
+
+  async function loadProducts(append) {
+    if (!append) { state.offset = 0; allLoadedProducts = []; }
+
+    const params = new URLSearchParams();
+    if (state.category) params.set('category', state.category);
+    if (state.q) params.set('q', state.q);
+    if (state.wholesale) params.set('mayorista', '1');
+    if (state.minPrice) params.set('minPrice', state.minPrice);
+    if (state.maxPrice) params.set('maxPrice', state.maxPrice);
+    params.set('limit', PAGE_SIZE);
+    params.set('offset', state.offset);
+
+    const data = await (await fetch(`/api/products?${params}`)).json();
+
+    if (!append && data.items.length === 0) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">${Essenza.t('catalog.empty')}</div>`;
+      loadMoreBtn.style.display = 'none';
+      return;
+    }
+
+    allLoadedProducts = append ? allLoadedProducts.concat(data.items) : data.items;
+    const html = data.items.map(productCard).join('');
+    grid.innerHTML = append ? grid.innerHTML + html : html;
+    bindCardButtons();
+
+    state.offset += data.items.length;
+    loadMoreBtn.style.display = data.hasMore ? 'inline-flex' : 'none';
   }
 
   let searchTimer;
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { state.q = searchInput.value.trim(); loadProducts(); }, 300);
+    searchTimer = setTimeout(() => { state.q = searchInput.value.trim(); loadProducts(false); }, 300);
   });
-  wholesaleToggle.addEventListener('change', () => { state.wholesale = wholesaleToggle.checked; loadProducts(); });
+  wholesaleToggle.addEventListener('change', () => { state.wholesale = wholesaleToggle.checked; loadProducts(false); });
 
-  document.addEventListener('essenza:langchange', () => { renderChips(); loadProducts(); });
+  let priceTimer;
+  function bindPriceInput(input, key) {
+    if (!input) return;
+    input.addEventListener('input', () => {
+      clearTimeout(priceTimer);
+      priceTimer = setTimeout(() => { state[key] = input.value; loadProducts(false); }, 400);
+    });
+  }
+  bindPriceInput(minPriceInput, 'minPrice');
+  bindPriceInput(maxPriceInput, 'maxPrice');
+
+  if (loadMoreBtn) loadMoreBtn.addEventListener('click', () => loadProducts(true));
+
+  document.addEventListener('essenza:langchange', () => { renderChips(); loadProducts(false); });
 
   renderChips();
-  loadProducts();
+  loadProducts(false);
 });

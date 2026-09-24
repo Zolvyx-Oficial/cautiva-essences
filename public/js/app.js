@@ -1,9 +1,10 @@
 // public/js/app.js
-// Núcleo compartido: header/footer, i18n, utilidades de carrito y formato de moneda.
+// Núcleo compartido: header/footer, i18n, utilidades de carrito, favoritos y formato de moneda.
 
 const Essenza = (() => {
   const CART_KEY = 'essenza_cart_v1';
   const LANG_KEY = 'essenza_lang';
+  const WISHLIST_KEY = 'essenza_wishlist_v1';
 
   function formatCOP(value) {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value);
@@ -82,6 +83,48 @@ const Essenza = (() => {
     document.querySelectorAll('.cart-count').forEach(el => el.textContent = cartCount());
   }
 
+  // ---------------- Favoritos (wishlist) ----------------
+  function getWishlist() {
+    try { return JSON.parse(localStorage.getItem(WISHLIST_KEY)) || []; }
+    catch { return []; }
+  }
+  function saveWishlist(list) {
+    localStorage.setItem(WISHLIST_KEY, JSON.stringify(list));
+    updateWishlistBadge();
+  }
+  function isInWishlist(productId) {
+    return getWishlist().some(i => i.productId === productId);
+  }
+  function toggleWishlist(product) {
+    const list = getWishlist();
+    const idx = list.findIndex(i => i.productId === product.id);
+    if (idx >= 0) {
+      list.splice(idx, 1);
+      saveWishlist(list);
+      return false; // ya no está en favoritos
+    }
+    list.push({
+      productId: product.id,
+      name: product.name,
+      brand: product.brand_name,
+      price: product.display_price ?? product.price_detal,
+      image: (product.images && product.images[0]) || null,
+      presentation: `${product.presentation_value}${product.presentation_unit}`
+    });
+    saveWishlist(list);
+    return true; // agregado a favoritos
+  }
+  function removeFromWishlist(productId) {
+    saveWishlist(getWishlist().filter(i => i.productId !== productId));
+  }
+  function wishlistCount() { return getWishlist().length; }
+  function updateWishlistBadge() {
+    document.querySelectorAll('.wishlist-count').forEach(el => {
+      el.textContent = wishlistCount();
+      el.style.display = wishlistCount() > 0 ? 'inline-flex' : 'none';
+    });
+  }
+
   // ---------------- Layout compartido ----------------
   function renderHeader(activePage = '') {
     const el = document.getElementById('site-header');
@@ -89,9 +132,9 @@ const Essenza = (() => {
     el.innerHTML = `
       <div class="header-row">
         <a href="/index.html" class="brand">
-          <img src="/img/logo.jpg" alt="Essenza Studio" onerror="this.style.display='none'">
+          <img src="/img/logo.jpg" alt="Cautiva Essences" onerror="this.style.display='none'">
           <span>
-            <span class="brand-name">Essenza Studio by Diana G</span>
+            <span class="brand-name">Cautiva Essences</span>
             <span class="brand-tagline">Tu firma invisible</span>
           </span>
         </a>
@@ -105,6 +148,10 @@ const Essenza = (() => {
             <button data-lang="es">ES</button>
             <button data-lang="en">EN</button>
           </div>
+          <a href="/wishlist.html" class="cart-btn" aria-label="Favoritos" title="Favoritos">
+            <span>♥</span>
+            <span class="wishlist-count cart-count-badge">0</span>
+          </a>
           <a href="/cart.html" class="cart-btn">
             <span data-i18n="nav.cart"></span>
             <span class="cart-count">0</span>
@@ -112,6 +159,7 @@ const Essenza = (() => {
         </div>
       </div>`;
     updateCartBadge();
+    updateWishlistBadge();
   }
 
   function renderFooter() {
@@ -121,7 +169,7 @@ const Essenza = (() => {
       <div class="container">
         <div class="footer-grid">
           <div>
-            <span class="brand-name" style="font-size:1.3rem">Essenza Studio</span>
+            <span class="brand-name" style="font-size:1.3rem">Cautiva Essences</span>
             <p data-i18n="footer.brand_desc" style="margin-top:10px"></p>
           </div>
           <div>
@@ -129,6 +177,7 @@ const Essenza = (() => {
             <ul>
               <li><a href="/index.html" data-i18n="nav.home"></a></li>
               <li><a href="/index.html#catalogo" data-i18n="nav.catalog"></a></li>
+              <li><a href="/wishlist.html">Favoritos</a></li>
               <li><a href="/cart.html" data-i18n="nav.cart"></a></li>
             </ul>
           </div>
@@ -141,7 +190,7 @@ const Essenza = (() => {
           </div>
         </div>
         <div class="footer-bottom">
-          <span>© ${new Date().getFullYear()} Essenza Studio by Diana G. <span data-i18n="footer.rights"></span></span>
+          <span>© ${new Date().getFullYear()} Cautiva Essences. <span data-i18n="footer.rights"></span></span>
           <span style="display:flex;align-items:center;gap:16px">
             <span style="opacity:.5">Sitio hecho con ⚡ por Zolvyx</span>
             <a href="/admin/login.html" style="opacity:.5">Admin</a>
@@ -153,6 +202,7 @@ const Essenza = (() => {
   return {
     formatCOP, t, getLang, initI18n, applyI18n,
     getCart, addToCart, removeFromCart, updateQty, clearCart, cartCount, cartSubtotal, updateCartBadge,
+    getWishlist, toggleWishlist, isInWishlist, removeFromWishlist, wishlistCount, updateWishlistBadge,
     renderHeader, renderFooter
   };
 })();
