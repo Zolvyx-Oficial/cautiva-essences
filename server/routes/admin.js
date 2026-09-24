@@ -1,5 +1,5 @@
 // server/routes/admin.js
-// Autenticación admin + CRUD completo de productos (protegido).
+// Autenticación admin + CRUD completo de productos y pedidos (protegido).
 
 const express = require('express');
 const router = express.Router();
@@ -49,6 +49,7 @@ router.post('/logout', (req, res) => {
 
 // GET /admin/me
 router.get('/me', requireAdmin, (req, res) => res.json({ email: req.admin.email }));
+
 // POST /admin/forgot-password
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
@@ -189,6 +190,7 @@ router.get('/orders', (req, res) => {
   const rows = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
   res.json(rows);
 });
+
 // PATCH /admin/orders/:id/status — Cambiar estado del pedido manualmente
 router.patch('/orders/:id/status', (req, res) => {
   const { payment_status } = req.body;
@@ -200,6 +202,19 @@ router.patch('/orders/:id/status', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Pedido no encontrado.' });
   db.prepare('UPDATE orders SET payment_status = ? WHERE id = ?').run(payment_status, req.params.id);
   res.json({ ok: true, payment_status });
+});
+
+// DELETE /admin/orders/:id — Eliminar un pedido y sus items
+router.delete('/orders/:id', (req, res) => {
+  const existing = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Pedido no encontrado.' });
+  // Los items se borran primero por la llave foránea
+  const borrarPedido = db.transaction((id) => {
+    db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
+    db.prepare('DELETE FROM orders WHERE id = ?').run(id);
+  });
+  borrarPedido(req.params.id);
+  res.json({ ok: true });
 });
 
 module.exports = router;

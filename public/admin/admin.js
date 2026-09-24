@@ -85,7 +85,7 @@ async function loadOrders() {
   }
 
   tbody.innerHTML = orders.map(o => `
-    <tr data-id="${o.id}">
+    <tr data-id="${o.id}" data-ref="${o.reference}">
       <td>${o.reference}</td>
       <td>${o.customer_name}<br><span style="color:var(--smoke);font-size:.78rem">${o.customer_phone}</span></td>
       <td>${o.customer_city || '—'}</td>
@@ -101,26 +101,35 @@ async function loadOrders() {
       <td style="white-space:nowrap">
         <a class="icon-btn" href="/checkout/invoice/${o.reference}" target="_blank" rel="noopener">Factura</a>
         <a class="icon-btn" href="https://wa.me/${(o.customer_phone || '').replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>
+        <button class="icon-btn delete-order-btn" style="color:var(--magenta-bright);border-color:var(--magenta-bright)">Eliminar</button>
       </td>
     </tr>`).join('');
 
   tbody.querySelectorAll('tr[data-id]').forEach(row => {
     const id = row.dataset.id;
+
     const select = row.querySelector('.status-select');
-    if (!select) return;
-    select.addEventListener('change', async () => {
-      const nuevo = select.value;
-      const res = await fetch(`/admin/orders/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_status: nuevo })
+    if (select) {
+      select.addEventListener('change', async () => {
+        const res = await fetch(`/admin/orders/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_status: select.value })
+        });
+        if (!res.ok) showError((await res.json()).error || 'No se pudo actualizar el pedido.');
+        loadOrders();
       });
-      if (!res.ok) {
-        showError((await res.json()).error || 'No se pudo actualizar el pedido.');
-        return loadOrders();
-      }
-      loadOrders();
-    });
+    }
+
+    const delBtn = row.querySelector('.delete-order-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', async () => {
+        if (!confirm(`¿Eliminar el pedido ${row.dataset.ref}? Esta acción no se puede deshacer.`)) return;
+        const res = await fetch(`/admin/orders/${id}`, { method: 'DELETE' });
+        if (!res.ok) return showError((await res.json()).error || 'No se pudo eliminar el pedido.');
+        loadOrders();
+      });
+    }
   });
 }
 
