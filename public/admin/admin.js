@@ -62,18 +62,66 @@ async function loadProducts() {
   });
 }
 
+const ESTADOS = [
+  { value: 'pendiente', label: 'Pendiente' },
+  { value: 'aprobada', label: 'Pagada' },
+  { value: 'entregada', label: 'Entregada' },
+  { value: 'rechazada', label: 'Cancelada' }
+];
+
+function pillClass(estado) {
+  if (estado === 'aprobada' || estado === 'entregada') return 'status-disponible';
+  if (estado === 'rechazada') return 'status-agotado';
+  return 'status-pre-orden';
+}
+
 async function loadOrders() {
   const orders = await (await fetch('/admin/orders')).json();
-  document.getElementById('orders-tbody').innerHTML = orders.map(o => `
-    <tr>
+  const tbody = document.getElementById('orders-tbody');
+
+  if (orders.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--smoke);padding:32px">Todavía no hay pedidos.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = orders.map(o => `
+    <tr data-id="${o.id}">
       <td>${o.reference}</td>
       <td>${o.customer_name}<br><span style="color:var(--smoke);font-size:.78rem">${o.customer_phone}</span></td>
       <td>${o.customer_city || '—'}</td>
       <td>${o.shipping_type}${o.shipping_carrier ? ' · ' + o.shipping_carrier : ''}</td>
       <td>${formatCOP(o.total)}</td>
-      <td><span class="status-pill status-${o.payment_status === 'aprobada' ? 'disponible' : o.payment_status === 'rechazada' ? 'agotado' : 'pre-orden'}">${o.payment_status}</span></td>
+      <td>
+        <span class="status-pill ${pillClass(o.payment_status)}">${o.payment_status}</span>
+        <select class="status-select" style="margin-top:6px;width:100%;background:var(--carbon);border:1px solid var(--carbon-line);border-radius:3px;padding:4px 6px;color:var(--white);font-size:.78rem">
+          ${ESTADOS.map(e => `<option value="${e.value}" ${o.payment_status === e.value ? 'selected' : ''}>${e.label}</option>`).join('')}
+        </select>
+      </td>
       <td>${new Date(o.created_at).toLocaleString('es-CO')}</td>
+      <td style="white-space:nowrap">
+        <a class="icon-btn" href="/checkout/invoice/${o.reference}" target="_blank" rel="noopener">Factura</a>
+        <a class="icon-btn" href="https://wa.me/${(o.customer_phone || '').replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>
+      </td>
     </tr>`).join('');
+
+  tbody.querySelectorAll('tr[data-id]').forEach(row => {
+    const id = row.dataset.id;
+    const select = row.querySelector('.status-select');
+    if (!select) return;
+    select.addEventListener('change', async () => {
+      const nuevo = select.value;
+      const res = await fetch(`/admin/orders/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_status: nuevo })
+      });
+      if (!res.ok) {
+        showError((await res.json()).error || 'No se pudo actualizar el pedido.');
+        return loadOrders();
+      }
+      loadOrders();
+    });
+  });
 }
 
 function openModal(product) {

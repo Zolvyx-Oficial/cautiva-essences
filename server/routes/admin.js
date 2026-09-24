@@ -189,5 +189,17 @@ router.get('/orders', (req, res) => {
   const rows = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
   res.json(rows);
 });
+// PATCH /admin/orders/:id/status — Cambiar estado del pedido manualmente
+router.patch('/orders/:id/status', (req, res) => {
+  const { payment_status } = req.body;
+  const permitidos = ['pendiente', 'aprobada', 'entregada', 'rechazada'];
+  if (!permitidos.includes(payment_status)) {
+    return res.status(400).json({ error: 'Estado no válido.' });
+  }
+  const existing = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Pedido no encontrado.' });
+  db.prepare('UPDATE orders SET payment_status = ? WHERE id = ?').run(payment_status, req.params.id);
+  res.json({ ok: true, payment_status });
+});
 
 module.exports = router;
