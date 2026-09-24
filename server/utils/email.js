@@ -4,7 +4,15 @@
 const { Resend } = require('resend');
 const { formatCOP } = require('./whatsapp');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+function emailDisponible() {
+  if (!resend) {
+    console.warn('RESEND_API_KEY no configurada: se omite el envio de correo.');
+    return false;
+  }
+  return true;
+}
 
 function buildOrderHtml({ order, items, title }) {
   const rows = items.map(it =>
@@ -30,8 +38,9 @@ function buildOrderHtml({ order, items, title }) {
 
 async function notifyNewOrder({ order, items }) {
   try {
+    if (!emailDisponible()) return;
     await resend.emails.send({
-      from: 'Essenza Studio <onboarding@resend.dev>',
+      from: 'Cautiva Essences <onboarding@resend.dev>',
       to: process.env.ADMIN_NOTIFICATION_EMAIL,
       subject: `🛍️ Nuevo pedido: ${order.reference}`,
       html: buildOrderHtml({ order, items, title: 'Nuevo pedido recibido' })
@@ -43,8 +52,9 @@ async function notifyNewOrder({ order, items }) {
 
 async function notifyPaymentApproved({ order, items }) {
   try {
+    if (!emailDisponible()) return;
     await resend.emails.send({
-      from: 'Essenza Studio <onboarding@resend.dev>',
+      from: 'Cautiva Essences <onboarding@resend.dev>',
       to: process.env.ADMIN_NOTIFICATION_EMAIL,
       subject: `✅ Pago aprobado: ${order.reference}`,
       html: buildOrderHtml({ order, items, title: 'Pago aprobado' })
@@ -56,10 +66,11 @@ async function notifyPaymentApproved({ order, items }) {
 
 async function sendPasswordResetEmail({ email, resetUrl }) {
   try {
+    if (!emailDisponible()) return;
     await resend.emails.send({
-      from: 'Essenza Studio <onboarding@resend.dev>',
+      from: 'Cautiva Essences <onboarding@resend.dev>',
       to: email,
-      subject: '🔑 Recuperar contraseña — Essenza Studio Admin',
+      subject: '🔑 Recuperar contraseña — Cautiva Essences Admin',
       html: `
         <div style="font-family:sans-serif;max-width:480px">
           <h2>Recuperar contraseña</h2>
