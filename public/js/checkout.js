@@ -93,8 +93,13 @@ function bindForm(cart) {
       shippingType: document.getElementById('shipping-type-input').value,
       carrier: document.getElementById('carrier-input').value,
       items: cart.map(i => ({ productId: i.productId, qty: i.qty })),
-      wholesale: false
+      // El servidor decide el precio: aplica el mayorista solo si la cantidad
+      // llega al mínimo de ese producto. Así el total cobrado coincide con el mostrado.
+      wholesale: true
     };
+
+    const payBtn = document.getElementById('pay-button');
+    payBtn.disabled = true;
 
     try {
       const res = await fetch('/checkout/create-order', {
@@ -109,6 +114,7 @@ function bindForm(cart) {
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.style.display = 'block';
+      payBtn.disabled = false;
     }
   });
 }
@@ -119,25 +125,52 @@ function renderPaymentStep(data) {
     <div class="alert alert-success">
       ${Essenza.t('checkout.order_created')}: <strong>${order.reference}</strong>
     </div>
+    <p style="margin-bottom:16px">Completa el pago para confirmar tu pedido:</p>
     <div id="wompi-widget-container"></div>
-    <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+    <div id="wompi-fallback" style="display:none;margin-top:8px">
+      <a href="${buildWompiCheckoutUrl(wompi)}" class="btn btn-magenta btn-block">Pagar con WOMPI</a>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px;border-top:1px solid var(--carbon-line);padding-top:20px">
       <a href="${whatsappLink}" target="_blank" rel="noopener" class="btn btn-outline btn-block">${Essenza.t('checkout.confirm_whatsapp')}</a>
       <a href="/checkout/invoice/${order.reference}" class="btn btn-outline btn-block">${Essenza.t('checkout.download_invoice')}</a>
     </div>`;
 
   // Widget de pago WOMPI (Web Checkout) — https://docs.wompi.co/docs/colombia/widget-checkout-web/
+  // OJO: el <script> se crea con createElement. Si se inyecta con innerHTML
+  // el navegador NO lo ejecuta y el widget nunca aparece.
   const form = document.createElement('form');
-  form.innerHTML = `
-    <script src="https://checkout.wompi.co/widget.js"
-      data-render="button"
-      data-public-key="${wompi.publicKey}"
-      data-currency="${wompi.currency}"
-      data-amount-in-cents="${wompi.amountInCents}"
-      data-reference="${wompi.reference}"
-      data-signature:integrity="${wompi.signature}"
-      data-redirect-url="${wompi.redirectUrl}">
-    </script>`;
+  const script = document.createElement('script');
+  script.src = 'https://checkout.wompi.co/widget.js';
+  script.setAttribute('data-render', 'button');
+  script.setAttribute('data-public-key', wompi.publicKey);
+  script.setAttribute('data-currency', wompi.currency);
+  script.setAttribute('data-amount-in-cents', String(wompi.amountInCents));
+  script.setAttribute('data-reference', wompi.reference);
+  script.setAttribute('data-signature:integrity', wompi.signature);
+  script.setAttribute('data-redirect-url', wompi.redirectUrl);
+  form.appendChild(script);
   document.getElementById('wompi-widget-container').appendChild(form);
+
+  // Si el widget no alcanzó a pintar su botón, mostramos el enlace directo
+  setTimeout(() => {
+    const cont = document.getElementById('wompi-widget-container');
+    if (cont && !cont.querySelector('button, .waybox-button, iframe')) {
+      document.getElementById('wompi-fallback').style.display = 'block';
+    }
+  }, 3000);
+}
+
+// Web Checkout por URL: plan B si el widget no carga
+function buildWompiCheckoutUrl(wompi) {
+  const params = new URLSearchParams({
+    'public-key': wompi.publicKey,
+    currency: wompi.currency,
+    'amount-in-cents': String(wompi.amountInCents),
+    reference: wompi.reference,
+    'signature:integrity': wompi.signature,
+    'redirect-url': wompi.redirectUrl
+  });
+  return `https://checkout.wompi.co/p/?${params}`;
 }
 
 async function showOrderConfirmation(reference) {
