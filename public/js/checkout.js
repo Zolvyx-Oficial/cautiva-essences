@@ -100,6 +100,7 @@ function bindForm(cart) {
 
     const payBtn = document.getElementById('pay-button');
     payBtn.disabled = true;
+    payBtn.innerHTML = '<span>Redirigiendo al pago...</span>';
 
     try {
       const res = await fetch('/checkout/create-order', {
@@ -109,58 +110,33 @@ function bindForm(cart) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      Essenza.clearCart();
-      renderPaymentStep(data);
+      // NO limpiamos el carrito todavía: si el pago falla, el cliente
+      // no pierde lo que había elegido y puede volver a intentar.
+      irAPagar(data);
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.style.display = 'block';
       payBtn.disabled = false;
+      payBtn.innerHTML = `<span>${Essenza.t('checkout.pay_wompi')}</span>`;
     }
   });
 }
 
-function renderPaymentStep(data) {
-  const { order, wompi, whatsappLink } = data;
+// Manda al cliente directo al checkout de WOMPI, sin pasos intermedios
+function irAPagar(data) {
+  const { wompi } = data;
+  const url = buildWompiCheckoutUrl(wompi);
+
   document.getElementById('checkout-form-section').innerHTML = `
-    <div class="alert alert-success">
-      ${Essenza.t('checkout.order_created')}: <strong>${order.reference}</strong>
-    </div>
-    <p style="margin-bottom:16px">Completa el pago para confirmar tu pedido:</p>
-    <div id="wompi-widget-container"></div>
-    <div id="wompi-fallback" style="display:none;margin-top:8px">
-      <a href="${buildWompiCheckoutUrl(wompi)}" class="btn btn-magenta btn-block">Pagar con WOMPI</a>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px;border-top:1px solid var(--carbon-line);padding-top:20px">
-      <a href="${whatsappLink}" target="_blank" rel="noopener" class="btn btn-outline btn-block">${Essenza.t('checkout.confirm_whatsapp')}</a>
-      <a href="/checkout/invoice/${order.reference}" class="btn btn-outline btn-block">${Essenza.t('checkout.download_invoice')}</a>
-    </div>`;
+    <div class="alert alert-success">Te estamos llevando a la pasarela de pago segura de WOMPI...</div>
+    <p style="margin-bottom:16px">Si no se abre automáticamente en unos segundos, usa este botón:</p>
+    <a href="${url}" class="btn btn-magenta btn-block">Continuar al pago</a>`;
 
-  // Widget de pago WOMPI (Web Checkout) — https://docs.wompi.co/docs/colombia/widget-checkout-web/
-  // OJO: el <script> se crea con createElement. Si se inyecta con innerHTML
-  // el navegador NO lo ejecuta y el widget nunca aparece.
-  const form = document.createElement('form');
-  const script = document.createElement('script');
-  script.src = 'https://checkout.wompi.co/widget.js';
-  script.setAttribute('data-render', 'button');
-  script.setAttribute('data-public-key', wompi.publicKey);
-  script.setAttribute('data-currency', wompi.currency);
-  script.setAttribute('data-amount-in-cents', String(wompi.amountInCents));
-  script.setAttribute('data-reference', wompi.reference);
-  script.setAttribute('data-signature:integrity', wompi.signature);
-  script.setAttribute('data-redirect-url', wompi.redirectUrl);
-  form.appendChild(script);
-  document.getElementById('wompi-widget-container').appendChild(form);
-
-  // Si el widget no alcanzó a pintar su botón, mostramos el enlace directo
-  setTimeout(() => {
-    const cont = document.getElementById('wompi-widget-container');
-    if (cont && !cont.querySelector('button, .waybox-button, iframe')) {
-      document.getElementById('wompi-fallback').style.display = 'block';
-    }
-  }, 3000);
+  // Pequeña pausa para que el mensaje se alcance a ver
+  setTimeout(() => { location.href = url; }, 600);
 }
 
-// Web Checkout por URL: plan B si el widget no carga
+// Web Checkout por URL de WOMPI
 function buildWompiCheckoutUrl(wompi) {
   const params = new URLSearchParams({
     'public-key': wompi.publicKey,
@@ -184,20 +160,53 @@ async function showOrderConfirmation(reference) {
     if (!res.ok) throw new Error(data.error);
     const { order, items } = data;
 
-    const statusLabel = { aprobada: '✅ Pago aprobado', rechazada: '❌ Pago rechazado', pendiente: '⏳ Pago pendiente de confirmación' }[order.payment_status] || order.payment_status;
+    const aprobado = order.payment_status === 'aprobada';
+    const rechazado = order.payment_status === 'rechazada';
+
+    // El pago salió bien: ya podemos vaciar el carrito
+    if (aprobado) Essenza.clearCart();
+
+    let encabezado, acciones;
+
+    if (aprobado) {
+      encabezado = `
+        <div class="alert alert-success" style="font-size:1rem">
+          ✅ <strong>¡Pago aprobado!</strong> Tu pedido <strong>${order.reference}</strong> quedó confirmado.
+        </div>
+        <p>Nos pondremos en contacto contigo para coordinar la entrega.</p>`;
+      acciones = `
+        <a href="/checkout/invoice/${order.reference}" class="btn btn-primary btn-block">${Essenza.t('checkout.download_invoice')}</a>
+        <a href="https://wa.me/573196812111?text=${encodeURIComponent('Hola, acabo de hacer el pedido ' + order.reference)}" target="_blank" rel="noopener" class="btn btn-outline btn-block">Escribirnos por WhatsApp</a>
+        <a href="/index.html" class="btn btn-outline btn-block">${Essenza.t('cart.continue')}</a>`;
+    } else if (rechazado) {
+      encabezado = `
+        <div class="alert alert-error" style="font-size:1rem">
+          ❌ <strong>El pago fue rechazado.</strong> No se hizo ningún cobro.
+        </div>
+        <p>Tu carrito sigue guardado, puedes intentar con otro medio de pago.</p>`;
+      acciones = `
+        <a href="/checkout.html" class="btn btn-primary btn-block">Intentar el pago de nuevo</a>
+        <a href="https://wa.me/573196812111?text=${encodeURIComponent('Hola, tuve un problema pagando el pedido ' + order.reference)}" target="_blank" rel="noopener" class="btn btn-outline btn-block">Necesito ayuda por WhatsApp</a>`;
+    } else {
+      encabezado = `
+        <div class="alert" style="background:rgba(255,255,255,.06);border:1px solid var(--carbon-line);font-size:1rem">
+          ⏳ <strong>Pago en verificación.</strong> Pedido <strong>${order.reference}</strong>.
+        </div>
+        <p>Algunos medios de pago (como PSE) tardan unos minutos en confirmarse. Puedes recargar esta página en un rato.</p>`;
+      acciones = `
+        <a href="/checkout.html?order=${order.reference}" class="btn btn-primary btn-block">Actualizar estado</a>
+        <a href="https://wa.me/573196812111?text=${encodeURIComponent('Hola, quiero confirmar el estado del pedido ' + order.reference)}" target="_blank" rel="noopener" class="btn btn-outline btn-block">Consultar por WhatsApp</a>`;
+    }
 
     section.innerHTML = `
-      <h2>${Essenza.t('checkout.order_created')}: ${order.reference}</h2>
-      <p>${statusLabel}</p>
-      <div class="summary-card" style="position:static">
+      ${encabezado}
+      <div class="summary-card" style="position:static;margin-top:20px">
         ${items.map(i => `<div class="summary-row"><span>${i.qty} × ${i.product_name}</span><span>${Essenza.formatCOP(i.line_total)}</span></div>`).join('')}
         <div class="summary-row"><span data-i18n="checkout.shipping_cost"></span><span>${Essenza.formatCOP(order.shipping_cost)}</span></div>
         <div class="summary-row total"><span data-i18n="checkout.total"></span><span>${Essenza.formatCOP(order.total)}</span></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
-        <a href="/checkout/invoice/${order.reference}" class="btn btn-primary btn-block">${Essenza.t('checkout.download_invoice')}</a>
-        <a href="/index.html" class="btn btn-outline btn-block">${Essenza.t('cart.continue')}</a>
-      </div>`;
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:20px">${acciones}</div>`;
+
     Essenza.applyI18n();
   } catch (err) {
     section.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
