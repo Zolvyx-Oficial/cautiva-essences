@@ -118,17 +118,18 @@ router.post('/products', (req, res) => {
     const stmt = db.prepare(`
       INSERT INTO products
         (sku, name, brand_id, category_id, notes_salida, notes_corazon, notes_fondo,
-         description_es, description_en, price_detal, price_mayor, mayor_min_qty,
+         description_es, description_en, price_detal, compare_at_price, price_mayor, mayor_min_qty,
          presentation_value, presentation_unit, weight_grams, stock_status, stock_qty, images, active)
       VALUES (@sku,@name,@brand_id,@category_id,@notes_salida,@notes_corazon,@notes_fondo,
-              @description_es,@description_en,@price_detal,@price_mayor,@mayor_min_qty,
+              @description_es,@description_en,@price_detal,@compare_at_price,@price_mayor,@mayor_min_qty,
               @presentation_value,@presentation_unit,@weight_grams,@stock_status,@stock_qty,@images,@active)
     `);
     const info = stmt.run({
       sku: b.sku, name: b.name, brand_id: b.brand_id, category_id: b.category_id,
       notes_salida: b.notes_salida || '', notes_corazon: b.notes_corazon || '', notes_fondo: b.notes_fondo || '',
       description_es: b.description_es || '', description_en: b.description_en || '',
-      price_detal: b.price_detal, price_mayor: b.price_mayor || null, mayor_min_qty: b.mayor_min_qty || 6,
+      price_detal: b.price_detal, compare_at_price: b.compare_at_price || null,
+      price_mayor: b.price_mayor || null, mayor_min_qty: b.mayor_min_qty || 6,
       presentation_value: b.presentation_value, presentation_unit: b.presentation_unit,
       weight_grams: b.weight_grams, stock_status: b.stock_status || 'disponible', stock_qty: b.stock_qty || 0,
       images: JSON.stringify(b.images || []), active: b.active === false ? 0 : 1
@@ -152,7 +153,7 @@ router.put('/products/:id', (req, res) => {
         sku=@sku, name=@name, brand_id=@brand_id, category_id=@category_id,
         notes_salida=@notes_salida, notes_corazon=@notes_corazon, notes_fondo=@notes_fondo,
         description_es=@description_es, description_en=@description_en,
-        price_detal=@price_detal, price_mayor=@price_mayor, mayor_min_qty=@mayor_min_qty,
+        price_detal=@price_detal, compare_at_price=@compare_at_price, price_mayor=@price_mayor, mayor_min_qty=@mayor_min_qty,
         presentation_value=@presentation_value, presentation_unit=@presentation_unit,
         weight_grams=@weight_grams, stock_status=@stock_status, stock_qty=@stock_qty,
         images=@images, active=@active, updated_at=datetime('now')
@@ -214,6 +215,34 @@ router.delete('/orders/:id', (req, res) => {
     db.prepare('DELETE FROM orders WHERE id = ?').run(id);
   });
   borrarPedido(req.params.id);
+  res.json({ ok: true });
+});
+
+// ---------- RESEÑAS ----------
+
+// GET /admin/reviews — todas (aprobadas y pendientes)
+router.get('/reviews', (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.*, p.name AS product_name
+    FROM reviews r
+    LEFT JOIN products p ON p.id = r.product_id
+    ORDER BY r.approved ASC, r.created_at DESC
+  `).all();
+  res.json(rows);
+});
+
+// PATCH /admin/reviews/:id/approve — aprobar / ocultar
+router.patch('/reviews/:id/approve', (req, res) => {
+  const existing = db.prepare('SELECT * FROM reviews WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Reseña no encontrada.' });
+  const nuevoEstado = existing.approved ? 0 : 1;
+  db.prepare('UPDATE reviews SET approved = ? WHERE id = ?').run(nuevoEstado, req.params.id);
+  res.json({ ok: true, approved: !!nuevoEstado });
+});
+
+// DELETE /admin/reviews/:id
+router.delete('/reviews/:id', (req, res) => {
+  db.prepare('DELETE FROM reviews WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 

@@ -1,5 +1,6 @@
 // public/js/catalog.js
-// Lógica del catálogo: filtros por categoría/precio, búsqueda, mayorista, paginación y favoritos.
+// Catálogo: filtros por categoría/precio, búsqueda, mayorista, paginación, favoritos,
+// aviso de pocas unidades y precio de oferta.
 
 document.addEventListener('DOMContentLoaded', async () => {
   Essenza.renderHeader('catalog');
@@ -15,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const loadMoreBtn = document.getElementById('load-more-btn');
 
   const PAGE_SIZE = 12;
+  const UMBRAL_POCAS = 5; // a partir de cuántas unidades se muestra el aviso
 
   const urlParams = new URLSearchParams(location.search);
   let state = {
@@ -46,24 +48,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function productCard(p) {
     const img = p.images && p.images[0] ? `<img src="${p.images[0]}" alt="${p.name}">` : `<span class="initials">${p.name.slice(0,2).toUpperCase()}</span>`;
+
     let badge = '';
     if (p.stock_status === 'agotado') badge = `<span class="badge badge-sold">${Essenza.t('catalog.sold_out')}</span>`;
     else if (p.stock_status === 'pre-orden') badge = `<span class="badge badge-preorder">${Essenza.t('catalog.pre_order')}</span>`;
 
-    const priceLabel = state.wholesale && p.price_mayor
-      ? `${Essenza.formatCOP(p.price_mayor)} <small>x${p.mayor_min_qty}+ ${Essenza.t('product.units')}</small>`
-      : Essenza.formatCOP(p.price_detal);
+    // Oferta: compare_at_price es el precio "antes"
+    const enOferta = !state.wholesale && p.compare_at_price && p.compare_at_price > p.price_detal;
+    const descuento = enOferta ? Math.round((1 - p.price_detal / p.compare_at_price) * 100) : 0;
+    const badgeOferta = enOferta ? `<span class="badge badge-sale">-${descuento}%</span>` : '';
+
+    // Aviso de pocas unidades (solo si está disponible y quedan pocas)
+    const pocas = p.stock_status === 'disponible' && p.stock_qty > 0 && p.stock_qty <= UMBRAL_POCAS;
+    const avisoStock = pocas ? `<div class="low-stock">¡Solo quedan ${p.stock_qty}!</div>` : '';
+
+    let priceLabel;
+    if (state.wholesale && p.price_mayor) {
+      priceLabel = `${Essenza.formatCOP(p.price_mayor)} <small>x${p.mayor_min_qty}+ ${Essenza.t('product.units')}</small>`;
+    } else if (enOferta) {
+      priceLabel = `<span class="price-old">${Essenza.formatCOP(p.compare_at_price)}</span> ${Essenza.formatCOP(p.price_detal)}`;
+    } else {
+      priceLabel = Essenza.formatCOP(p.price_detal);
+    }
+
+    const estrellas = p.rating_count
+      ? `<div class="rating-line"><span class="stars">${'★★★★★'.slice(0, Math.round(p.rating_avg))}${'☆☆☆☆☆'.slice(0, 5 - Math.round(p.rating_avg))}</span> <span>(${p.rating_count})</span></div>`
+      : '';
 
     const fav = Essenza.isInWishlist(p.id);
 
     return `
       <article class="product-card">
-        <a href="/product.html?id=${p.id}" class="thumb">${img}${badge}</a>
+        <a href="/product.html?id=${p.id}" class="thumb">${img}${badge}${badgeOferta}</a>
         <button class="fav-btn ${fav ? 'is-fav' : ''}" data-fav-id="${p.id}" aria-label="Agregar a favoritos" title="Agregar a favoritos">${fav ? '♥' : '♡'}</button>
         <div class="info">
           <span class="brand-label">${p.brand_name || ''}</span>
           <a href="/product.html?id=${p.id}"><h3>${p.name}</h3></a>
           <span class="ml">${p.presentation_value}${p.presentation_unit}</span>
+          ${estrellas}
+          ${avisoStock}
           <div class="price-row">
             <span class="price">${priceLabel}</span>
             <button class="add-btn" data-id="${p.id}" ${p.stock_status === 'agotado' ? 'disabled' : ''} aria-label="${Essenza.t('catalog.add')}">+</button>

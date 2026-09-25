@@ -133,6 +133,44 @@ async function loadOrders() {
   });
 }
 
+async function loadReviews() {
+  const reviews = await (await fetch('/admin/reviews')).json();
+  const tbody = document.getElementById('reviews-tbody');
+
+  if (reviews.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--smoke);padding:32px">Todavía no hay reseñas.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = reviews.map(r => `
+    <tr data-id="${r.id}">
+      <td>${r.product_name || '—'}</td>
+      <td>${r.customer_name}</td>
+      <td style="color:var(--gold);white-space:nowrap">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</td>
+      <td style="max-width:320px">${r.comment ? r.comment : '<span style="color:var(--smoke)">(sin comentario)</span>'}</td>
+      <td><span class="status-pill ${r.approved ? 'status-disponible' : 'status-pre-orden'}">${r.approved ? 'publicada' : 'pendiente'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="icon-btn approve-review-btn">${r.approved ? 'Ocultar' : 'Publicar'}</button>
+        <button class="icon-btn delete-review-btn" style="color:var(--magenta-bright);border-color:var(--magenta-bright)">Eliminar</button>
+      </td>
+    </tr>`).join('');
+
+  tbody.querySelectorAll('tr[data-id]').forEach(row => {
+    const id = row.dataset.id;
+    row.querySelector('.approve-review-btn').addEventListener('click', async () => {
+      const res = await fetch(`/admin/reviews/${id}/approve`, { method: 'PATCH' });
+      if (!res.ok) return showError((await res.json()).error);
+      loadReviews();
+    });
+    row.querySelector('.delete-review-btn').addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta reseña? Esta acción no se puede deshacer.')) return;
+      const res = await fetch(`/admin/reviews/${id}`, { method: 'DELETE' });
+      if (!res.ok) return showError((await res.json()).error);
+      loadReviews();
+    });
+  });
+}
+
 function openModal(product) {
   const form = document.getElementById('product-form');
   form.reset();
@@ -173,7 +211,9 @@ async function saveProduct(e) {
   const id = form.elements['id'].value;
   const payload = {
     name: form.name.value, sku: form.sku.value, brand_id: +form.brand_id.value, category_id: +form.category_id.value,
-    price_detal: +form.price_detal.value, price_mayor: form.price_mayor.value ? +form.price_mayor.value : null,
+    price_detal: +form.price_detal.value,
+    compare_at_price: form.compare_at_price && form.compare_at_price.value ? +form.compare_at_price.value : null,
+    price_mayor: form.price_mayor.value ? +form.price_mayor.value : null,
     mayor_min_qty: +form.mayor_min_qty.value || 6,
     presentation_value: +form.presentation_value.value, presentation_unit: form.presentation_unit.value,
     weight_grams: +form.weight_grams.value, stock_status: form.stock_status.value, stock_qty: +form.stock_qty.value,
@@ -213,11 +253,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('.nav-link[data-view]').forEach(l => l.classList.remove('active'));
       link.classList.add('active');
       const view = link.dataset.view;
-      document.getElementById('view-products').style.display = view === 'products' ? 'block' : 'none';
-      document.getElementById('view-orders').style.display = view === 'orders' ? 'block' : 'none';
-      document.getElementById('view-title').textContent = view === 'products' ? 'Productos' : 'Pedidos';
+      const titulos = { products: 'Productos', orders: 'Pedidos', reviews: 'Reseñas' };
+      ['products', 'orders', 'reviews'].forEach(v => {
+        const el = document.getElementById(`view-${v}`);
+        if (el) el.style.display = view === v ? 'block' : 'none';
+      });
+      document.getElementById('view-title').textContent = titulos[view] || '';
       document.getElementById('new-product-btn').style.display = view === 'products' ? 'inline-flex' : 'none';
       if (view === 'orders') loadOrders();
+      if (view === 'reviews') loadReviews();
     });
   });
 });
