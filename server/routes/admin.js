@@ -246,4 +246,94 @@ router.delete('/reviews/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- CATEGORÍAS ----------
+
+function generarSlug(texto) {
+  return String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+// POST /admin/categories — Crear categoría
+router.post('/categories', (req, res) => {
+  const { slug, name_es, name_en, description_es, description_en } = req.body;
+  if (!name_es || !name_en) return res.status(400).json({ error: 'El nombre en español y en inglés son obligatorios.' });
+  const slugFinal = generarSlug(slug || name_es);
+  try {
+    const info = db.prepare(`
+      INSERT INTO categories (slug, name_es, name_en, description_es, description_en)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(slugFinal, name_es.trim(), name_en.trim(), description_es || '', description_en || '');
+    res.status(201).json({ id: info.lastInsertRowid, slug: slugFinal });
+  } catch (err) {
+    res.status(400).json({ error: 'No se pudo crear la categoría (¿el identificador ya existe?): ' + err.message });
+  }
+});
+
+// PUT /admin/categories/:id — Editar categoría
+router.put('/categories/:id', (req, res) => {
+  const existing = db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Categoría no encontrada.' });
+  const b = { ...existing, ...req.body };
+  try {
+    db.prepare(`
+      UPDATE categories SET slug=?, name_es=?, name_en=?, description_es=?, description_en=?
+      WHERE id=?
+    `).run(generarSlug(b.slug || b.name_es), b.name_es, b.name_en, b.description_es || '', b.description_en || '', req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: 'No se pudo actualizar la categoría: ' + err.message });
+  }
+});
+
+// DELETE /admin/categories/:id — solo si no tiene productos ni marcas
+router.delete('/categories/:id', (req, res) => {
+  const productos = db.prepare('SELECT COUNT(*) c FROM products WHERE category_id = ?').get(req.params.id).c;
+  if (productos > 0) {
+    return res.status(400).json({ error: `No se puede eliminar: hay ${productos} producto(s) en esta categoría. Muévelos primero.` });
+  }
+  const marcas = db.prepare('SELECT COUNT(*) c FROM brands WHERE category_id = ?').get(req.params.id).c;
+  if (marcas > 0) {
+    return res.status(400).json({ error: `No se puede eliminar: hay ${marcas} marca(s) en esta categoría. Muévelas primero.` });
+  }
+  db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ---------- MARCAS ----------
+
+// POST /admin/brands — Crear marca
+router.post('/brands', (req, res) => {
+  const { name, category_id } = req.body;
+  if (!name || !category_id) return res.status(400).json({ error: 'El nombre y la categoría son obligatorios.' });
+  try {
+    const info = db.prepare('INSERT INTO brands (name, category_id) VALUES (?, ?)').run(name.trim(), category_id);
+    res.status(201).json({ id: info.lastInsertRowid });
+  } catch (err) {
+    res.status(400).json({ error: 'No se pudo crear la marca (¿ya existe una con ese nombre?): ' + err.message });
+  }
+});
+
+// PUT /admin/brands/:id — Editar marca
+router.put('/brands/:id', (req, res) => {
+  const existing = db.prepare('SELECT * FROM brands WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Marca no encontrada.' });
+  const b = { ...existing, ...req.body };
+  try {
+    db.prepare('UPDATE brands SET name=?, category_id=? WHERE id=?').run(b.name, b.category_id, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: 'No se pudo actualizar la marca: ' + err.message });
+  }
+});
+
+// DELETE /admin/brands/:id — solo si no tiene productos
+router.delete('/brands/:id', (req, res) => {
+  const productos = db.prepare('SELECT COUNT(*) c FROM products WHERE brand_id = ?').get(req.params.id).c;
+  if (productos > 0) {
+    return res.status(400).json({ error: `No se puede eliminar: hay ${productos} producto(s) de esta marca. Muévelos o elimínalos primero.` });
+  }
+  db.prepare('DELETE FROM brands WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 module.exports = router;

@@ -171,6 +171,125 @@ async function loadReviews() {
   });
 }
 
+// ---------- CATEGORÍAS Y MARCAS ----------
+
+async function loadTaxonomy() {
+  await loadLookups(); // refresca los selects del formulario de productos
+
+  // --- Categorías ---
+  const catBody = document.getElementById('categories-tbody');
+  catBody.innerHTML = categories.map(c => `
+    <tr data-id="${c.id}">
+      <td>${c.name_es}</td>
+      <td>${c.name_en}</td>
+      <td><span style="color:var(--smoke);font-size:.78rem">${c.slug}</span></td>
+      <td style="white-space:nowrap">
+        <button class="icon-btn edit-cat-btn">Editar</button>
+        <button class="icon-btn delete-cat-btn" style="color:var(--magenta-bright);border-color:var(--magenta-bright)">Eliminar</button>
+      </td>
+    </tr>`).join('');
+
+  catBody.querySelectorAll('tr[data-id]').forEach(row => {
+    const id = row.dataset.id;
+    const cat = categories.find(c => c.id == id);
+    row.querySelector('.edit-cat-btn').addEventListener('click', () => openCategoryModal(cat));
+    row.querySelector('.delete-cat-btn').addEventListener('click', async () => {
+      if (!confirm(`¿Eliminar la categoría "${cat.name_es}"?`)) return;
+      const res = await fetch(`/admin/categories/${id}`, { method: 'DELETE' });
+      if (!res.ok) return showError((await res.json()).error);
+      loadTaxonomy();
+    });
+  });
+
+  // --- Marcas ---
+  const brandBody = document.getElementById('brands-tbody');
+  brandBody.innerHTML = brands.map(b => {
+    const cat = categories.find(c => c.id === b.category_id);
+    return `
+      <tr data-id="${b.id}">
+        <td>${b.name}</td>
+        <td>${cat ? cat.name_es : '<span style="color:var(--magenta-bright)">sin categoría</span>'}</td>
+        <td style="white-space:nowrap">
+          <button class="icon-btn edit-brand-btn">Editar</button>
+          <button class="icon-btn delete-brand-btn" style="color:var(--magenta-bright);border-color:var(--magenta-bright)">Eliminar</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  brandBody.querySelectorAll('tr[data-id]').forEach(row => {
+    const id = row.dataset.id;
+    const brand = brands.find(b => b.id == id);
+    row.querySelector('.edit-brand-btn').addEventListener('click', () => openBrandModal(brand));
+    row.querySelector('.delete-brand-btn').addEventListener('click', async () => {
+      if (!confirm(`¿Eliminar la marca "${brand.name}"?`)) return;
+      const res = await fetch(`/admin/brands/${id}`, { method: 'DELETE' });
+      if (!res.ok) return showError((await res.json()).error);
+      loadTaxonomy();
+    });
+  });
+}
+
+function openCategoryModal(cat) {
+  const form = document.getElementById('category-form');
+  form.reset();
+  form.elements['id'].value = cat ? cat.id : '';
+  document.getElementById('category-modal-title').textContent = cat ? 'Editar categoría' : 'Nueva categoría';
+  if (cat) {
+    form.name_es.value = cat.name_es || '';
+    form.name_en.value = cat.name_en || '';
+    form.slug.value = cat.slug || '';
+    form.description_es.value = cat.description_es || '';
+    form.description_en.value = cat.description_en || '';
+  }
+  document.getElementById('category-modal').classList.add('open');
+}
+
+function openBrandModal(brand) {
+  const form = document.getElementById('brand-form');
+  form.reset();
+  form.elements['id'].value = brand ? brand.id : '';
+  document.getElementById('brand-modal-title').textContent = brand ? 'Editar marca' : 'Nueva marca';
+  form.category_id.innerHTML = categories.map(c => `<option value="${c.id}">${c.name_es}</option>`).join('');
+  if (brand) {
+    form.name.value = brand.name || '';
+    form.category_id.value = brand.category_id || '';
+  }
+  document.getElementById('brand-modal').classList.add('open');
+}
+
+async function saveCategory(e) {
+  e.preventDefault();
+  const form = e.target;
+  const id = form.elements['id'].value;
+  const payload = {
+    name_es: form.name_es.value, name_en: form.name_en.value, slug: form.slug.value,
+    description_es: form.description_es.value, description_en: form.description_en.value
+  };
+  const res = await fetch(id ? `/admin/categories/${id}` : '/admin/categories', {
+    method: id ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) return showError((await res.json()).error);
+  document.getElementById('category-modal').classList.remove('open');
+  loadTaxonomy();
+}
+
+async function saveBrand(e) {
+  e.preventDefault();
+  const form = e.target;
+  const id = form.elements['id'].value;
+  const payload = { name: form.name.value, category_id: +form.category_id.value };
+  const res = await fetch(id ? `/admin/brands/${id}` : '/admin/brands', {
+    method: id ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) return showError((await res.json()).error);
+  document.getElementById('brand-modal').classList.remove('open');
+  loadTaxonomy();
+}
+
 function openModal(product) {
   const form = document.getElementById('product-form');
   form.reset();
@@ -241,6 +360,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('product-form').addEventListener('submit', saveProduct);
   document.getElementById('image-input').addEventListener('change', (e) => handleImageUpload(e.target.files));
 
+  document.getElementById('new-category-btn').addEventListener('click', () => openCategoryModal(null));
+  document.getElementById('new-brand-btn').addEventListener('click', () => openBrandModal(null));
+  document.getElementById('category-form').addEventListener('submit', saveCategory);
+  document.getElementById('brand-form').addEventListener('submit', saveBrand);
+  document.getElementById('cancel-category-btn').addEventListener('click', () => document.getElementById('category-modal').classList.remove('open'));
+  document.getElementById('cancel-brand-btn').addEventListener('click', () => document.getElementById('brand-modal').classList.remove('open'));
+
   document.getElementById('logout-link').addEventListener('click', async (e) => {
     e.preventDefault();
     await fetch('/admin/logout', { method: 'POST' });
@@ -253,8 +379,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('.nav-link[data-view]').forEach(l => l.classList.remove('active'));
       link.classList.add('active');
       const view = link.dataset.view;
-      const titulos = { products: 'Productos', orders: 'Pedidos', reviews: 'Reseñas' };
-      ['products', 'orders', 'reviews'].forEach(v => {
+      const titulos = { products: 'Productos', orders: 'Pedidos', reviews: 'Reseñas', taxonomy: 'Categorías y marcas' };
+      ['products', 'orders', 'reviews', 'taxonomy'].forEach(v => {
         const el = document.getElementById(`view-${v}`);
         if (el) el.style.display = view === v ? 'block' : 'none';
       });
@@ -262,6 +388,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('new-product-btn').style.display = view === 'products' ? 'inline-flex' : 'none';
       if (view === 'orders') loadOrders();
       if (view === 'reviews') loadReviews();
+      if (view === 'taxonomy') loadTaxonomy();
     });
   });
 });

@@ -16,6 +16,8 @@
     <nav>
       <a href="#" data-view="products" class="nav-link active">Productos</a>
       <a href="#" data-view="orders" class="nav-link">Pedidos</a>
+      <a href="#" data-view="reviews" class="nav-link">Reseñas</a>
+      <a href="#" data-view="taxonomy" class="nav-link">Categorías y marcas</a>
       <a href="/index.html" target="_blank">Ver tienda ↗</a>
       <a href="#" id="logout-link">Cerrar sesión</a>
     </nav>
@@ -44,6 +46,33 @@
           <tr><th>Referencia</th><th>Cliente</th><th>Ciudad</th><th>Envío</th><th>Total</th><th>Pago</th><th>Fecha</th><th>Acciones</th></tr>
         </thead>
         <tbody id="orders-tbody"></tbody>
+      </table>
+    </section>
+        <section id="view-reviews" style="display:none">
+      <table class="data-table">
+        <thead>
+          <tr><th>Producto</th><th>Cliente</th><th>Estrellas</th><th>Comentario</th><th>Estado</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="reviews-tbody"></tbody>
+      </table>
+    </section>
+        <section id="view-taxonomy" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0">Categorías</h3>
+        <button id="new-category-btn" class="btn btn-outline">+ Nueva categoría</button>
+      </div>
+      <table class="data-table" style="margin-bottom:40px">
+        <thead><tr><th>Nombre (ES)</th><th>Nombre (EN)</th><th>Identificador</th><th>Acciones</th></tr></thead>
+        <tbody id="categories-tbody"></tbody>
+      </table>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0">Marcas</h3>
+        <button id="new-brand-btn" class="btn btn-outline">+ Nueva marca</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Marca</th><th>Categoría</th><th>Acciones</th></tr></thead>
+        <tbody id="brands-tbody"></tbody>
       </table>
     </section>
   </main>
@@ -107,7 +136,42 @@
     </form>
   </div>
 </div>
+<!-- Modal categoría -->
+<div class="modal-overlay" id="category-modal">
+  <div class="modal-card">
+    <h3 id="category-modal-title">Nueva categoría</h3>
+    <form id="category-form">
+      <input type="hidden" name="id">
+      <div class="form-grid-2">
+        <div class="form-field"><label>Nombre (español)</label><input name="name_es" required></div>
+        <div class="form-field"><label>Nombre (inglés)</label><input name="name_en" required></div>
+      </div>
+      <div class="form-field"><label>Identificador (se genera solo si lo dejas vacío)</label><input name="slug" placeholder="ej: arabe-oriental"></div>
+      <div class="form-field"><label>Descripción (ES)</label><textarea name="description_es" rows="2"></textarea></div>
+      <div class="form-field"><label>Descripción (EN)</label><textarea name="description_en" rows="2"></textarea></div>
+      <div style="display:flex;gap:12px;margin-top:20px">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="button" id="cancel-category-btn" class="btn btn-outline">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
 
+<!-- Modal marca -->
+<div class="modal-overlay" id="brand-modal">
+  <div class="modal-card" style="max-width:420px">
+    <h3 id="brand-modal-title">Nueva marca</h3>
+    <form id="brand-form">
+      <input type="hidden" name="id">
+      <div class="form-field"><label>Nombre de la marca</label><input name="name" required></div>
+      <div class="form-field"><label>Categoría</label><select name="category_id" required></select></div>
+      <div style="display:flex;gap:12px;margin-top:20px">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="button" id="cancel-brand-btn" class="btn btn-outline">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
 <script src="/admin/admin.js"></script>
 </body>
 </html>

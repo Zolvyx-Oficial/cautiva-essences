@@ -29,6 +29,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   wholesaleToggle.checked = state.wholesale;
 
+  const banner = document.getElementById('wholesale-banner');
+  const bannerBtn = document.getElementById('wholesale-banner-btn');
+  const bannerText = document.getElementById('wholesale-banner-text');
+
+  function pintarBanner() {
+    if (!banner) return;
+    banner.classList.toggle('is-active', state.wholesale);
+    if (state.wholesale) {
+      bannerText.innerHTML = '<strong>Estás viendo precios al por mayor.</strong> Aplican desde el mínimo de unidades de cada perfume.';
+      bannerBtn.textContent = 'Ver precios al detal';
+    } else {
+      bannerText.innerHTML = '<strong>¿Compras al por mayor?</strong> Tenemos precios especiales por volumen en buena parte del catálogo.';
+      bannerBtn.textContent = 'Ver precios al por mayor';
+    }
+  }
+
+  if (bannerBtn) {
+    bannerBtn.addEventListener('click', () => {
+      state.wholesale = !state.wholesale;
+      wholesaleToggle.checked = state.wholesale;
+      pintarBanner();
+      loadProducts(false);
+    });
+  }
+
   let allLoadedProducts = [];
 
   const categories = await (await fetch('/api/categories')).json();
@@ -71,6 +96,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       priceLabel = Essenza.formatCOP(p.price_detal);
     }
 
+    const pistaMayor = (!state.wholesale && p.price_mayor)
+      ? `<div class="wholesale-hint">Llevando ${p.mayor_min_qty}+: <strong>${Essenza.formatCOP(p.price_mayor)}</strong> c/u</div>`
+      : '';
+
     const estrellas = p.rating_count
       ? `<div class="rating-line"><span class="stars">${'★★★★★'.slice(0, Math.round(p.rating_avg))}${'☆☆☆☆☆'.slice(0, 5 - Math.round(p.rating_avg))}</span> <span>(${p.rating_count})</span></div>`
       : '';
@@ -86,6 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <a href="/product.html?id=${p.id}"><h3>${p.name}</h3></a>
           <span class="ml">${p.presentation_value}${p.presentation_unit}</span>
           ${estrellas}
+          ${pistaMayor}
           ${avisoStock}
           <div class="price-row">
             <span class="price">${priceLabel}</span>
@@ -153,7 +183,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { state.q = searchInput.value.trim(); loadProducts(false); }, 300);
   });
-  wholesaleToggle.addEventListener('change', () => { state.wholesale = wholesaleToggle.checked; loadProducts(false); });
+  wholesaleToggle.addEventListener('change', () => {
+    state.wholesale = wholesaleToggle.checked;
+    pintarBanner();
+    loadProducts(false);
+  });
 
   let priceTimer;
   function bindPriceInput(input, key) {
@@ -170,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.addEventListener('essenza:langchange', () => { renderChips(); loadProducts(false); });
 
+  pintarBanner();
   renderChips();
   loadProducts(false);
 });

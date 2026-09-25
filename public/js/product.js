@@ -56,7 +56,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span class="ml">${p.presentation_value}${p.presentation_unit}</span>
       </div>
       ${avisoStock}
-      ${p.price_mayor ? `<p style="color:var(--gold);font-size:.85rem" data-i18n-note>${Essenza.t('product.wholesale_note')} ${p.mayor_min_qty} ${Essenza.t('product.units')}: <strong>${Essenza.formatCOP(p.price_mayor)}</strong></p>` : ''}
+      ${p.price_mayor ? `
+        <div class="wholesale-box">
+          <div class="wholesale-box-title">Precio al por mayor</div>
+          <p>Llevando <strong>${p.mayor_min_qty} unidades o más</strong>, cada una te sale en
+             <strong class="wholesale-price">${Essenza.formatCOP(p.price_mayor)}</strong>
+             <span class="wholesale-save">(ahorras ${Essenza.formatCOP(p.price_detal - p.price_mayor)} por unidad)</span>
+          </p>
+          <a href="https://wa.me/573196812111?text=${encodeURIComponent('Hola, me interesa el precio al por mayor de ' + p.name)}" target="_blank" rel="noopener" class="btn btn-outline">Cotizar por WhatsApp</a>
+        </div>` : ''}
 
       <div style="display:flex;gap:16px;align-items:center;margin:24px 0">
         <div class="qty-selector">

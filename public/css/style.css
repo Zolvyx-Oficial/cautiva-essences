@@ -131,6 +131,9 @@ p { color: var(--smoke); max-width: 62ch; }
 .badge { position: absolute; top: 10px; left: 10px; font-size: .65rem; letter-spacing: .08em; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; font-weight: 700; }
 .badge-sold { background: var(--magenta); color: var(--white); }
 .badge-preorder { background: var(--gold); color: var(--carbon); }
+.badge-sale { background: var(--magenta); color: var(--white); top: 10px; right: 54px; left: auto; }
+.price-old { text-decoration: line-through; color: var(--smoke); font-size: .85em; margin-right: 6px; font-family: var(--font-ui); }
+.low-stock { color: var(--magenta-bright); font-size: .78rem; font-weight: 700; letter-spacing: .02em; }
 .product-card .info { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .product-card .brand-label { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
 .product-card h3 { font-size: 1.3rem; margin: 0; }
@@ -236,7 +239,31 @@ table.data-table tr:hover { background: rgba(255,255,255,.02); }
 .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
 /* ---------- Responsive ---------- */
+/* ---------- Reseñas ---------- */
+.rating-line { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--smoke); }
+.stars { color: var(--gold); letter-spacing: 1px; }
+.reviews-layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 40px; align-items: start; padding-bottom: 80px; }
+.review-card { border-bottom: 1px solid var(--carbon-line); padding: 16px 0; }
+.review-head { display: flex; align-items: center; gap: 12px; }
+.review-text { margin: 8px 0 4px; color: var(--white); font-size: .92rem; }
+.review-date { font-size: .72rem; color: var(--smoke); }
+.star-picker { display: flex; gap: 4px; }
+.star-btn { background: none; border: none; color: var(--carbon-line); font-size: 1.6rem; line-height: 1; padding: 0; transition: color .15s; }
+.star-btn.is-active { color: var(--gold); }
+/* ---------- Mayorista ---------- */
+.wholesale-banner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; border: 1px solid var(--carbon-line); border-left: 3px solid var(--gold); border-radius: var(--radius-md); background: linear-gradient(100deg, rgba(212,175,55,.07), transparent 60%); padding: 18px 22px; margin-bottom: 28px; }
+.wholesale-banner span { color: var(--smoke); font-size: .92rem; }
+.wholesale-banner strong { color: var(--white); }
+.wholesale-banner.is-active { border-left-color: var(--magenta); background: linear-gradient(100deg, rgba(176,17,75,.1), transparent 60%); }
+.wholesale-hint { font-size: .75rem; color: var(--gold); }
+.wholesale-box { border: 1px solid var(--carbon-line); border-left: 3px solid var(--gold); border-radius: var(--radius-md); padding: 18px 20px; margin: 20px 0; background: rgba(212,175,55,.05); }
+.wholesale-box-title { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+.wholesale-box p { color: var(--smoke); margin: 0 0 14px; }
+.wholesale-box strong { color: var(--white); }
+.wholesale-price { color: var(--gold) !important; font-size: 1.1rem; }
+.wholesale-save { color: var(--magenta-bright); font-size: .85rem; display: block; margin-top: 4px; }
 @media (max-width: 860px) {
+    .reviews-layout { grid-template-columns: 1fr; }
   .main-nav { display: none; }
   .mobile-toggle { display: block; }
   .hero-grid, .product-detail, .cart-layout, .checkout-layout { grid-template-columns: 1fr; }
