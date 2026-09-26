@@ -8,8 +8,16 @@ function showError(msg) {
   setTimeout(() => box.style.display = 'none', 5000);
 }
 
+// Evita que un nombre o comentario con < > rompa la tabla
+function escapeHTML(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+
 let currentImages = [];
 let brands = [], categories = [];
+let orderItemsByOrder = {};
 
 async function checkAuth() {
   const res = await fetch('/admin/me');
@@ -22,8 +30,8 @@ async function loadLookups() {
   categories = await (await fetch('/admin/categories')).json();
   const brandSelect = document.querySelector('select[name="brand_id"]');
   const catSelect = document.querySelector('select[name="category_id"]');
-  brandSelect.innerHTML = brands.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-  catSelect.innerHTML = categories.map(c => `<option value="${c.id}">${c.name_es}</option>`).join('');
+  brandSelect.innerHTML = brands.map(b => `<option value="${b.id}">${escapeHTML(b.name)}</option>`).join('');
+  catSelect.innerHTML = categories.map(c => `<option value="${c.id}">${escapeHTML(c.name_es)}</option>`).join('');
 }
 
 async function loadProducts() {
@@ -31,8 +39,8 @@ async function loadProducts() {
   const tbody = document.getElementById('products-tbody');
   tbody.innerHTML = products.map(p => `
     <tr data-id="${p.id}">
-      <td>${p.name}<br><span style="color:var(--smoke);font-size:.78rem">${p.sku}</span></td>
-      <td>${p.brand_name || '—'}</td>
+      <td>${escapeHTML(p.name)}<br><span style="color:var(--smoke);font-size:.78rem">${escapeHTML(p.sku)}</span></td>
+      <td>${escapeHTML(p.brand_name) || '—'}</td>
       <td>${formatCOP(p.price_detal)}</td>
       <td>${p.price_mayor ? formatCOP(p.price_mayor) : '—'}</td>
       <td>${p.stock_qty}</td>
@@ -62,6 +70,8 @@ async function loadProducts() {
   });
 }
 
+// ---------- PEDIDOS ----------
+
 const ESTADOS = [
   { value: 'pendiente', label: 'Pendiente' },
   { value: 'aprobada', label: 'Pagada' },
@@ -75,21 +85,79 @@ function pillClass(estado) {
   return 'status-pre-orden';
 }
 
+// Trae de una sola vez los productos de todos los pedidos y los agrupa por pedido
+async function loadOrderItems() {
+  orderItemsByOrder = {};
+  try {
+    const res = await fetch('/admin/order-items');
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return;
+    for (const r of rows) {
+      if (!orderItemsByOrder[r.order_id]) orderItemsByOrder[r.order_id] = [];
+      orderItemsByOrder[r.order_id].push(r);
+    }
+  } catch (e) {
+    console.warn('No se pudieron cargar los productos de los pedidos:', e.message);
+  }
+}
+
+// Arma el HTML de la columna PRODUCTOS de un pedido
+function itemsHTML(orderId) {
+  const items = orderItemsByOrder[orderId];
+  if (!items || !items.length) {
+    return '<span style="color:var(--smoke);font-size:.78rem">sin detalle</span>';
+  }
+
+  return items.map(it => {
+    const qty = it.qty ?? it.quantity ?? it.cantidad ?? 1;
+    const nombre = it.product_name || it.name || 'Producto';
+    const pres = it.presentation_value ? ` ${it.presentation_value}${it.presentation_unit || ''}` : '';
+    const marca = it.brand_name ? ` · ${escapeHTML(it.brand_name)}` : '';
+    return `<div style="margin-bottom:5px;line-height:1.35;font-size:.82rem">
+      <strong style="color:var(--gold)">${qty} ×</strong> ${escapeHTML(nombre)}${escapeHTML(pres)}
+      <span style="color:var(--smoke);font-size:.74rem">${marca}</span>
+    </div>`;
+  }).join('');
+}
+
+// Agrega la columna PRODUCTOS al encabezado de la tabla (no hay que tocar el HTML)
+function ensureProductsHeader() {
+  const tbody = document.getElementById('orders-tbody');
+  const table = tbody && tbody.closest('table');
+  if (!table) return;
+  const headRow = table.querySelector('thead tr');
+  if (!headRow || headRow.querySelector('.th-productos')) return;
+
+  const th = document.createElement('th');
+  th.className = 'th-productos';
+  th.textContent = 'Productos';
+  if (headRow.children.length >= 3) headRow.insertBefore(th, headRow.children[2]);
+  else headRow.appendChild(th);
+}
+
 async function loadOrders() {
-  const orders = await (await fetch('/admin/orders')).json();
+  ensureProductsHeader();
+
+  const [orders] = await Promise.all([
+    (await fetch('/admin/orders')).json(),
+    loadOrderItems()
+  ]);
+
   const tbody = document.getElementById('orders-tbody');
 
-  if (orders.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--smoke);padding:32px">Todavía no hay pedidos.</td></tr>`;
+  if (!orders || orders.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--smoke);padding:32px">Todavía no hay pedidos.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = orders.map(o => `
-    <tr data-id="${o.id}" data-ref="${o.reference}">
-      <td>${o.reference}</td>
-      <td>${o.customer_name}<br><span style="color:var(--smoke);font-size:.78rem">${o.customer_phone}</span></td>
-      <td>${o.customer_city || '—'}</td>
-      <td>${o.shipping_type}${o.shipping_carrier ? ' · ' + o.shipping_carrier : ''}</td>
+    <tr data-id="${o.id}" data-ref="${escapeHTML(o.reference)}">
+      <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;word-break:break-all;max-width:120px">${escapeHTML(o.reference)}</td>
+      <td>${escapeHTML(o.customer_name)}<br><span style="color:var(--smoke);font-size:.78rem">${escapeHTML(o.customer_phone)}</span></td>
+      <td style="min-width:190px">${itemsHTML(o.id)}</td>
+      <td>${escapeHTML(o.customer_city) || '—'}</td>
+      <td>${escapeHTML(o.shipping_type)}${o.shipping_carrier ? ' · ' + escapeHTML(o.shipping_carrier) : ''}</td>
       <td>${formatCOP(o.total)}</td>
       <td>
         <span class="status-pill ${pillClass(o.payment_status)}">${o.payment_status}</span>
@@ -99,7 +167,7 @@ async function loadOrders() {
       </td>
       <td>${new Date(o.created_at).toLocaleString('es-CO')}</td>
       <td style="white-space:nowrap">
-        <a class="icon-btn" href="/checkout/invoice/${o.reference}" target="_blank" rel="noopener">Factura</a>
+        <a class="icon-btn" href="/checkout/invoice/${encodeURIComponent(o.reference)}" target="_blank" rel="noopener">Factura</a>
         <a class="icon-btn" href="https://wa.me/${(o.customer_phone || '').replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>
         <button class="icon-btn delete-order-btn" style="color:var(--magenta-bright);border-color:var(--magenta-bright)">Eliminar</button>
       </td>
@@ -133,6 +201,8 @@ async function loadOrders() {
   });
 }
 
+// ---------- RESEÑAS ----------
+
 async function loadReviews() {
   const reviews = await (await fetch('/admin/reviews')).json();
   const tbody = document.getElementById('reviews-tbody');
@@ -144,10 +214,10 @@ async function loadReviews() {
 
   tbody.innerHTML = reviews.map(r => `
     <tr data-id="${r.id}">
-      <td>${r.product_name || '—'}</td>
-      <td>${r.customer_name}</td>
+      <td>${escapeHTML(r.product_name) || '—'}</td>
+      <td>${escapeHTML(r.customer_name)}</td>
       <td style="color:var(--gold);white-space:nowrap">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</td>
-      <td style="max-width:320px">${r.comment ? r.comment : '<span style="color:var(--smoke)">(sin comentario)</span>'}</td>
+      <td style="max-width:320px">${r.comment ? escapeHTML(r.comment) : '<span style="color:var(--smoke)">(sin comentario)</span>'}</td>
       <td><span class="status-pill ${r.approved ? 'status-disponible' : 'status-pre-orden'}">${r.approved ? 'publicada' : 'pendiente'}</span></td>
       <td style="white-space:nowrap">
         <button class="icon-btn approve-review-btn">${r.approved ? 'Ocultar' : 'Publicar'}</button>
@@ -180,9 +250,9 @@ async function loadTaxonomy() {
   const catBody = document.getElementById('categories-tbody');
   catBody.innerHTML = categories.map(c => `
     <tr data-id="${c.id}">
-      <td>${c.name_es}</td>
-      <td>${c.name_en}</td>
-      <td><span style="color:var(--smoke);font-size:.78rem">${c.slug}</span></td>
+      <td>${escapeHTML(c.name_es)}</td>
+      <td>${escapeHTML(c.name_en)}</td>
+      <td><span style="color:var(--smoke);font-size:.78rem">${escapeHTML(c.slug)}</span></td>
       <td style="white-space:nowrap">
         <button class="icon-btn edit-cat-btn">Editar</button>
         <button class="icon-btn delete-cat-btn" style="color:var(--magenta-bright);border-color:var(--magenta-bright)">Eliminar</button>
@@ -207,8 +277,8 @@ async function loadTaxonomy() {
     const cat = categories.find(c => c.id === b.category_id);
     return `
       <tr data-id="${b.id}">
-        <td>${b.name}</td>
-        <td>${cat ? cat.name_es : '<span style="color:var(--magenta-bright)">sin categoría</span>'}</td>
+        <td>${escapeHTML(b.name)}</td>
+        <td>${cat ? escapeHTML(cat.name_es) : '<span style="color:var(--magenta-bright)">sin categoría</span>'}</td>
         <td style="white-space:nowrap">
           <button class="icon-btn edit-brand-btn">Editar</button>
           <button class="icon-btn delete-brand-btn" style="color:var(--magenta-bright);border-color:var(--magenta-bright)">Eliminar</button>
@@ -249,7 +319,7 @@ function openBrandModal(brand) {
   form.reset();
   form.elements['id'].value = brand ? brand.id : '';
   document.getElementById('brand-modal-title').textContent = brand ? 'Editar marca' : 'Nueva marca';
-  form.category_id.innerHTML = categories.map(c => `<option value="${c.id}">${c.name_es}</option>`).join('');
+  form.category_id.innerHTML = categories.map(c => `<option value="${c.id}">${escapeHTML(c.name_es)}</option>`).join('');
   if (brand) {
     form.name.value = brand.name || '';
     form.category_id.value = brand.category_id || '';
@@ -290,27 +360,74 @@ async function saveBrand(e) {
   loadTaxonomy();
 }
 
+// ---------- PRODUCTO: MODAL E IMÁGENES ----------
+
 function openModal(product) {
   const form = document.getElementById('product-form');
   form.reset();
   currentImages = [];
-  document.getElementById('image-preview').innerHTML = '';
   document.getElementById('modal-title').textContent = product ? 'Editar producto' : 'Nuevo producto';
 
   if (product) {
     for (const key of Object.keys(product)) {
       if (form.elements[key]) form.elements[key].value = product[key] ?? '';
     }
-    currentImages = product.images || [];
-    renderImagePreview();
+    // copia, para que quitar o reordenar no toque la lista original
+    currentImages = Array.isArray(product.images) ? product.images.slice() : [];
   }
+
+  renderImagePreview();
   document.getElementById('product-modal').classList.add('open');
 }
 
 function closeModal() { document.getElementById('product-modal').classList.remove('open'); }
 
 function renderImagePreview() {
-  document.getElementById('image-preview').innerHTML = currentImages.map(src => `<img src="${src}" style="width:56px;height:56px;object-fit:cover;border-radius:4px;border:1px solid var(--carbon-line)">`).join('');
+  const box = document.getElementById('image-preview');
+  if (!box) return;
+
+  if (!currentImages.length) {
+    box.innerHTML = '<span style="color:var(--smoke);font-size:.82rem">Sin imágenes todavía. Súbelas con el botón de arriba.</span>';
+    return;
+  }
+
+  box.innerHTML = currentImages.map((src, i) => `
+    <div style="position:relative;display:inline-block;margin:0 10px 10px 0;text-align:center;vertical-align:top">
+      <img src="${src}" style="width:74px;height:74px;object-fit:cover;border-radius:6px;display:block;border:2px solid ${i === 0 ? '#e0218a' : 'var(--carbon-line)'}">
+      <button type="button" class="img-del" data-i="${i}" title="Quitar esta imagen"
+        style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:none;background:#c0392b;color:#fff;font-size:12px;line-height:22px;cursor:pointer;padding:0">✕</button>
+      <div style="margin-top:4px;display:flex;gap:3px;justify-content:center">
+        <button type="button" class="img-left" data-i="${i}" ${i === 0 ? 'disabled' : ''} title="Mover antes"
+          style="width:28px;border:1px solid var(--carbon-line);background:transparent;color:inherit;border-radius:4px;cursor:pointer;font-size:11px">◀</button>
+        <button type="button" class="img-right" data-i="${i}" ${i === currentImages.length - 1 ? 'disabled' : ''} title="Mover después"
+          style="width:28px;border:1px solid var(--carbon-line);background:transparent;color:inherit;border-radius:4px;cursor:pointer;font-size:11px">▶</button>
+      </div>
+      <div style="font-size:.66rem;margin-top:3px;color:${i === 0 ? '#e0218a' : 'var(--smoke)'}">${i === 0 ? 'Principal' : i + 1}</div>
+    </div>`).join('');
+
+  box.querySelectorAll('.img-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!confirm('¿Quitar esta imagen del producto?')) return;
+      currentImages.splice(+btn.dataset.i, 1);
+      renderImagePreview();
+    });
+  });
+
+  box.querySelectorAll('.img-left').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      [currentImages[i - 1], currentImages[i]] = [currentImages[i], currentImages[i - 1]];
+      renderImagePreview();
+    });
+  });
+
+  box.querySelectorAll('.img-right').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      [currentImages[i], currentImages[i + 1]] = [currentImages[i + 1], currentImages[i]];
+      renderImagePreview();
+    });
+  });
 }
 
 async function handleImageUpload(files) {
@@ -319,6 +436,8 @@ async function handleImageUpload(files) {
   for (const f of files) formData.append('images', f);
   const res = await fetch('/admin/upload', { method: 'POST', body: formData });
   const data = await res.json();
+  const input = document.getElementById('image-input');
+  if (input) input.value = ''; // permite volver a subir el mismo archivo
   if (!res.ok) return showError(data.error);
   currentImages = currentImages.concat(data.paths);
   renderImagePreview();

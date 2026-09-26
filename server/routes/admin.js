@@ -186,10 +186,60 @@ router.post('/upload', upload.array('images', 6), (req, res) => {
   res.json({ paths });
 });
 
+// ---------- PEDIDOS ----------
+
 // GET /admin/orders — Ver pedidos
 router.get('/orders', (req, res) => {
   const rows = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
   res.json(rows);
+});
+
+// GET /admin/order-items — Productos de todos los pedidos, para la columna PRODUCTOS
+// Se declara antes de /orders/:id para que Express no la confunda con un id.
+router.get('/order-items', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT oi.*,
+             COALESCE(p.name, 'Producto eliminado') AS product_name,
+             p.sku,
+             p.presentation_value,
+             p.presentation_unit,
+             b.name AS brand_name
+      FROM order_items oi
+      LEFT JOIN products p ON p.id = oi.product_id
+      LEFT JOIN brands   b ON b.id = p.brand_id
+      ORDER BY oi.order_id DESC, oi.id ASC
+    `).all();
+    res.json(rows);
+  } catch (err) {
+    console.error('Error cargando order-items:', err.message);
+    res.status(500).json({ error: 'No se pudieron cargar los productos de los pedidos.' });
+  }
+});
+
+// GET /admin/orders/:id/items — Detalle de un pedido puntual
+router.get('/orders/:id/items', (req, res) => {
+  const pedido = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado.' });
+  try {
+    const items = db.prepare(`
+      SELECT oi.*,
+             COALESCE(p.name, 'Producto eliminado') AS product_name,
+             p.sku,
+             p.presentation_value,
+             p.presentation_unit,
+             b.name AS brand_name
+      FROM order_items oi
+      LEFT JOIN products p ON p.id = oi.product_id
+      LEFT JOIN brands   b ON b.id = p.brand_id
+      WHERE oi.order_id = ?
+      ORDER BY oi.id ASC
+    `).all(req.params.id);
+    res.json({ order: pedido, items });
+  } catch (err) {
+    console.error('Error cargando el detalle del pedido:', err.message);
+    res.status(500).json({ error: 'No se pudo cargar el detalle del pedido.' });
+  }
 });
 
 // PATCH /admin/orders/:id/status — Cambiar estado del pedido manualmente
@@ -249,7 +299,7 @@ router.delete('/reviews/:id', (req, res) => {
 // ---------- CATEGORÍAS ----------
 
 function generarSlug(texto) {
-  return String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return String(texto).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
