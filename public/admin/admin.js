@@ -360,11 +360,143 @@ async function saveBrand(e) {
   loadTaxonomy();
 }
 
+// ---------- ALTA RÁPIDA DE MARCA Y CATEGORÍA ----------
+// Agrega un botón "+ Nueva" debajo de cada menú del formulario de producto,
+// para crear marcas y categorías sin salir de la ventana ni perder lo escrito.
+
+function montarAltaRapida() {
+  const brandSelect = document.querySelector('select[name="brand_id"]');
+  const catSelect = document.querySelector('select[name="category_id"]');
+  if (catSelect) montarBotonRapido(catSelect, 'categoria');
+  if (brandSelect) montarBotonRapido(brandSelect, 'marca');
+}
+
+function montarBotonRapido(select, tipo) {
+  if (select.dataset.altaRapida) return; // evita duplicar el botón
+  select.dataset.altaRapida = '1';
+
+  const esMarca = tipo === 'marca';
+  const etiqueta = esMarca ? 'marca' : 'categoría';
+
+  const wrap = document.createElement('div');
+  wrap.style.marginTop = '6px';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = esMarca ? '+ Nueva marca' : '+ Nueva categoría';
+  btn.style.cssText = 'background:transparent;border:1px dashed var(--carbon-line);color:var(--gold);border-radius:4px;padding:4px 10px;font-size:.76rem;cursor:pointer';
+
+  const panel = document.createElement('div');
+  panel.className = 'alta-panel';
+  panel.style.cssText = 'display:none;margin-top:8px;padding:10px;border:1px solid var(--carbon-line);border-radius:6px;background:rgba(0,0,0,.35)';
+  panel.innerHTML = `
+    <label style="display:block;font-size:.74rem;color:var(--smoke);margin-bottom:4px">Nombre de la nueva ${etiqueta}</label>
+    <input type="text" class="alta-input" placeholder="${esMarca ? 'Ej: Yara' : 'Ej: Perfumería Árabe'}"
+      style="width:100%;background:#14141a;border:1px solid var(--carbon-line);border-radius:4px;padding:7px 9px;color:#fff;font-size:.85rem">
+    <div class="alta-msg" style="font-size:.72rem;color:var(--smoke);margin-top:6px"></div>
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <button type="button" class="alta-save icon-btn">Guardar</button>
+      <button type="button" class="alta-cancel icon-btn">Cancelar</button>
+    </div>`;
+
+  select.parentNode.insertBefore(wrap, select.nextSibling);
+  wrap.appendChild(btn);
+  wrap.appendChild(panel);
+
+  const input = panel.querySelector('.alta-input');
+  const msg = panel.querySelector('.alta-msg');
+
+  function avisoCategoria() {
+    const catSelect = document.querySelector('select[name="category_id"]');
+    const opt = catSelect && catSelect.selectedOptions[0];
+    return opt ? `Se va a crear dentro de la categoría: ${opt.textContent}` : 'Primero elige una categoría.';
+  }
+
+  btn.addEventListener('click', () => {
+    const abierto = panel.style.display === 'block';
+    panel.style.display = abierto ? 'none' : 'block';
+    if (!abierto) {
+      input.value = '';
+      msg.style.color = 'var(--smoke)';
+      msg.textContent = esMarca ? avisoCategoria() : '';
+      input.focus();
+    }
+  });
+
+  panel.querySelector('.alta-cancel').addEventListener('click', () => { panel.style.display = 'none'; });
+  panel.querySelector('.alta-save').addEventListener('click', guardar);
+
+  // Enter guarda la marca/categoría, sin enviar el formulario del producto
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); guardar(); }
+  });
+
+  async function guardar() {
+    const nombre = input.value.trim();
+    msg.style.color = 'var(--magenta-bright)';
+
+    if (!nombre) { msg.textContent = `Escribe el nombre de la ${etiqueta}.`; return; }
+
+    let url, payload;
+    if (esMarca) {
+      const catSelect = document.querySelector('select[name="category_id"]');
+      const catId = catSelect ? +catSelect.value : 0;
+      if (!catId) { msg.textContent = 'Primero elige una categoría.'; return; }
+      url = '/admin/brands';
+      payload = { name: nombre, category_id: catId };
+    } else {
+      url = '/admin/categories';
+      payload = { name_es: nombre, name_en: nombre };
+    }
+
+    msg.style.color = 'var(--smoke)';
+    msg.textContent = 'Guardando...';
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        msg.style.color = 'var(--magenta-bright)';
+        msg.textContent = data.error || 'No se pudo guardar.';
+        return;
+      }
+      await refrescarSelects(tipo, data.id);
+      panel.style.display = 'none';
+    } catch (err) {
+      msg.style.color = 'var(--magenta-bright)';
+      msg.textContent = 'Error de conexión: ' + err.message;
+    }
+  }
+}
+
+// Recarga los dos menús y deja seleccionado lo recién creado,
+// sin perder lo que ya estaba elegido en el otro.
+async function refrescarSelects(tipo, nuevoId) {
+  const brandSelect = document.querySelector('select[name="brand_id"]');
+  const catSelect = document.querySelector('select[name="category_id"]');
+  const brandPrev = brandSelect ? brandSelect.value : '';
+  const catPrev = catSelect ? catSelect.value : '';
+
+  brands = await (await fetch('/admin/brands')).json();
+  categories = await (await fetch('/admin/categories')).json();
+
+  if (brandSelect) brandSelect.innerHTML = brands.map(b => `<option value="${b.id}">${escapeHTML(b.name)}</option>`).join('');
+  if (catSelect) catSelect.innerHTML = categories.map(c => `<option value="${c.id}">${escapeHTML(c.name_es)}</option>`).join('');
+
+  if (brandSelect) brandSelect.value = tipo === 'marca' ? nuevoId : brandPrev;
+  if (catSelect) catSelect.value = tipo === 'categoria' ? nuevoId : catPrev;
+}
+
 // ---------- PRODUCTO: MODAL E IMÁGENES ----------
 
 function openModal(product) {
   const form = document.getElementById('product-form');
   form.reset();
+  document.querySelectorAll('.alta-panel').forEach(p => { p.style.display = 'none'; });
   currentImages = [];
   document.getElementById('modal-title').textContent = product ? 'Editar producto' : 'Nuevo producto';
 
@@ -472,6 +604,7 @@ async function saveProduct(e) {
 document.addEventListener('DOMContentLoaded', async () => {
   if (!(await checkAuth())) return;
   await loadLookups();
+  montarAltaRapida();
   await loadProducts();
 
   document.getElementById('new-product-btn').addEventListener('click', () => openModal(null));
