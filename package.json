@@ -1,7 +1,7 @@
 {
-  "name": "essenza-studio",
+  "name": "cautiva-essences",
   "version": "1.0.0",
-  "description": "E-commerce de perfumería fina - Essenza Studio",
+  "description": "E-commerce de perfumería fina - Cautiva Essences",
   "main": "server/index.js",
   "type": "commonjs",
   "scripts": {
