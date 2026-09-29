@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     maxPrice: '',
     offset: 0
   };
-  wholesaleToggle.checked = state.wholesale;
+  if (wholesaleToggle) wholesaleToggle.checked = state.wholesale;
 
   const banner = document.getElementById('wholesale-banner');
   const bannerBtn = document.getElementById('wholesale-banner-btn');
@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (bannerBtn) {
     bannerBtn.addEventListener('click', () => {
       state.wholesale = !state.wholesale;
-      wholesaleToggle.checked = state.wholesale;
+      if (wholesaleToggle) wholesaleToggle.checked = state.wholesale;
       pintarBanner();
       loadProducts(false);
     });
@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const categories = await (await fetch('/api/categories')).json();
 
   function renderChips() {
+    if (!chipsWrap) return;
     const allChip = `<button class="chip ${state.category === '' ? 'active' : ''}" data-slug="">${Essenza.t('catalog.all')}</button>`;
     const catChips = categories.map(c => `<button class="chip ${state.category === c.slug ? 'active' : ''}" data-slug="${c.slug}">${Essenza.getLang() === 'en' ? c.name_en : c.name_es}</button>`).join('');
     chipsWrap.innerHTML = allChip + catChips;
@@ -72,7 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function productCard(p) {
-    const img = p.images && p.images[0] ? `<img src="${p.images[0]}" alt="${p.name}">` : `<span class="initials">${p.name.slice(0,2).toUpperCase()}</span>`;
+    const img = p.images && p.images[0] ? `<img src="${p.images[0]}" alt="${p.name}">` : `<span class="initials">${p.name.slice(0, 2).toUpperCase()}</span>`;
 
     let badge = '';
     if (p.stock_status === 'agotado') badge = `<span class="badge badge-sold">${Essenza.t('catalog.sold_out')}</span>`;
@@ -125,27 +126,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       </article>`;
   }
 
-  function bindCardButtons() {
-    grid.querySelectorAll('.add-btn').forEach(btn => {
-      if (btn.dataset.bound) return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => {
-        const product = allLoadedProducts.find(p => p.id == btn.dataset.id);
+  // Un solo listener para toda la grilla (delegación de eventos).
+  // Así funcionan también las tarjetas que se agregan con "Cargar más",
+  // sin volver a enganchar nada.
+  if (grid) {
+    grid.addEventListener('click', (e) => {
+      const addBtn = e.target.closest('.add-btn');
+      if (addBtn && grid.contains(addBtn)) {
+        const product = allLoadedProducts.find(p => String(p.id) === String(addBtn.dataset.id));
+        if (!product) return;
         Essenza.addToCart(product, 1);
-        btn.textContent = '✓';
-        setTimeout(() => btn.textContent = '+', 900);
-      });
-    });
+        addBtn.textContent = '✓';
+        setTimeout(() => { addBtn.textContent = '+'; }, 900);
+        return;
+      }
 
-    grid.querySelectorAll('.fav-btn').forEach(btn => {
-      if (btn.dataset.bound) return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => {
-        const product = allLoadedProducts.find(p => p.id == btn.dataset.favId);
+      const favBtn = e.target.closest('.fav-btn');
+      if (favBtn && grid.contains(favBtn)) {
+        const product = allLoadedProducts.find(p => String(p.id) === String(favBtn.dataset.favId));
+        if (!product) return;
         const added = Essenza.toggleWishlist(product);
-        btn.classList.toggle('is-fav', added);
-        btn.textContent = added ? '♥' : '♡';
-      });
+        favBtn.classList.toggle('is-fav', added);
+        favBtn.textContent = added ? '♥' : '♡';
+      }
     });
   }
 
@@ -161,33 +164,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     params.set('limit', PAGE_SIZE);
     params.set('offset', state.offset);
 
-    const data = await (await fetch(`/api/products?${params}`)).json();
-
-    if (!append && data.items.length === 0) {
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">${Essenza.t('catalog.empty')}</div>`;
-      loadMoreBtn.style.display = 'none';
+    let data;
+    try {
+      data = await (await fetch(`/api/products?${params}`)).json();
+    } catch (err) {
+      console.error('No se pudo cargar el catálogo:', err);
       return;
     }
 
-    allLoadedProducts = append ? allLoadedProducts.concat(data.items) : data.items;
-    const html = data.items.map(productCard).join('');
-    grid.innerHTML = append ? grid.innerHTML + html : html;
-    bindCardButtons();
+    const items = Array.isArray(data.items) ? data.items : [];
 
-    state.offset += data.items.length;
-    loadMoreBtn.style.display = data.hasMore ? 'inline-flex' : 'none';
+    if (!append && items.length === 0) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">${Essenza.t('catalog.empty')}</div>`;
+      if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+      return;
+    }
+
+    allLoadedProducts = append ? allLoadedProducts.concat(items) : items;
+    const html = items.map(productCard).join('');
+
+    // insertAdjacentHTML agrega sin tocar lo que ya está en pantalla.
+    // (grid.innerHTML += html volvía a crear TODAS las tarjetas desde cero.)
+    if (append) grid.insertAdjacentHTML('beforeend', html);
+    else grid.innerHTML = html;
+
+    state.offset += items.length;
+    if (loadMoreBtn) loadMoreBtn.style.display = data.hasMore ? 'inline-flex' : 'none';
   }
 
   let searchTimer;
-  searchInput.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { state.q = searchInput.value.trim(); loadProducts(false); }, 300);
-  });
-  wholesaleToggle.addEventListener('change', () => {
-    state.wholesale = wholesaleToggle.checked;
-    pintarBanner();
-    loadProducts(false);
-  });
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => { state.q = searchInput.value.trim(); loadProducts(false); }, 300);
+    });
+  }
+
+  if (wholesaleToggle) {
+    wholesaleToggle.addEventListener('change', () => {
+      state.wholesale = wholesaleToggle.checked;
+      pintarBanner();
+      loadProducts(false);
+    });
+  }
 
   let priceTimer;
   function bindPriceInput(input, key) {
