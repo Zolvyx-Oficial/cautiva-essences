@@ -52,7 +52,10 @@
       </div>
     </div>
     <div class="hero-visual">
-      <video class="hero-visual-video" autoplay muted loop playsinline>
+      <video class="hero-visual-video" id="hero-video"
+             autoplay muted loop playsinline webkit-playsinline
+             preload="metadata" disablepictureinpicture
+             poster="/img/hero-poster.jpg">
         <source src="/video/hero.mp4" type="video/mp4">
       </video>
       <div class="hero-visual-overlay"></div>
@@ -67,7 +70,7 @@
 
 <section class="catalog-section" id="catalogo">
   <div class="container">
-        <div class="wholesale-banner" id="wholesale-banner">
+    <div class="wholesale-banner" id="wholesale-banner">
       <span id="wholesale-banner-text"></span>
       <button class="btn btn-outline" id="wholesale-banner-btn">Ver precios al por mayor</button>
     </div>
@@ -101,5 +104,37 @@
 
 <script src="/js/app.js"></script>
 <script src="/js/catalog.js"></script>
+
+<script>
+// Video del hero: iOS Safari es estricto con la reproducción automática.
+(function () {
+  var v = document.getElementById('hero-video');
+  if (!v) return;
+
+  // iOS a veces ignora el atributo; hay que forzarlo también por propiedad.
+  v.muted = true;
+  v.setAttribute('muted', '');
+
+  function intentarReproducir() {
+    var p = v.play();
+    if (p && p.catch) p.catch(function () { /* se queda la imagen de respaldo */ });
+  }
+
+  intentarReproducir();
+
+  // Si el navegador lo bloqueó al cargar, reintentamos al primer toque o scroll.
+  ['touchstart', 'click', 'scroll'].forEach(function (ev) {
+    document.addEventListener(ev, function once() {
+      intentarReproducir();
+      document.removeEventListener(ev, once);
+    }, { passive: true });
+  });
+
+  // Y al volver a la pestaña.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) intentarReproducir();
+  });
+})();
+</script>
 </body>
 </html>
