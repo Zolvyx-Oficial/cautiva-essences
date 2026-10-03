@@ -4,8 +4,71 @@ function formatCOP(v) { return new Intl.NumberFormat('es-CO', { style: 'currency
 function showError(msg) {
   const box = document.getElementById('admin-error');
   box.textContent = msg;
+  box.style.background = '';
+  box.style.borderColor = '';
+  box.style.color = '';
   box.style.display = 'block';
   setTimeout(() => box.style.display = 'none', 5000);
+}
+
+// Confirmación verde, para que se sepa que algo SÍ se guardó
+function showOk(msg) {
+  const box = document.getElementById('admin-error');
+  box.textContent = msg;
+  box.style.background = 'rgba(39,174,96,.14)';
+  box.style.borderColor = '#27ae60';
+  box.style.color = '#7ee2a8';
+  box.style.display = 'block';
+  setTimeout(() => { box.style.display = 'none'; }, 4000);
+}
+
+// ---------- ERRORES DENTRO DE LA VENTANA DEL PRODUCTO ----------
+// La barra de error general queda DETRÁS del modal, así que quien está
+// editando un producto nunca la ve. Este error se pinta dentro del formulario.
+
+function showModalError(html) {
+  const form = document.getElementById('product-form');
+  if (!form) return showError(String(html).replace(/<[^>]+>/g, ''));
+
+  let box = document.getElementById('product-form-error');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'product-form-error';
+    box.style.cssText = 'margin-bottom:14px;padding:11px 13px;border:1px solid #c0392b;' +
+      'background:rgba(192,57,43,.14);color:#ff9d92;border-radius:6px;font-size:.86rem;line-height:1.45';
+    form.insertBefore(box, form.firstChild);
+  }
+  box.innerHTML = html;
+  box.style.display = 'block';
+  box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function hideModalError() {
+  const box = document.getElementById('product-form-error');
+  if (box) box.style.display = 'none';
+}
+
+// Traduce los errores técnicos de SQLite a algo que se entienda
+function mensajeDeError(texto) {
+  const t = String(texto || '');
+
+  if (/UNIQUE constraint failed:\s*products\.sku/i.test(t)) {
+    return '<strong>Ya existe un producto con esa referencia (SKU).</strong><br>' +
+      'El SKU es el código interno y no se puede repetir entre productos. ' +
+      'Usa uno distinto, por ejemplo agregándole el tamaño: <code>YARA-ROS-100</code>.';
+  }
+  if (/UNIQUE constraint failed/i.test(t)) {
+    return '<strong>Ese dato ya está registrado en otro producto.</strong><br>Revisa la referencia (SKU).';
+  }
+  const noNulo = t.match(/NOT NULL constraint failed:\s*products\.(\w+)/i);
+  if (noNulo) {
+    return `<strong>Falta un campo obligatorio:</strong> ${escapeHTML(noNulo[1])}.`;
+  }
+  const obligatorio = t.match(/El campo "(\w+)" es obligatorio/i);
+  if (obligatorio) {
+    return `<strong>Falta llenar el campo:</strong> ${escapeHTML(obligatorio[1])}.`;
+  }
+  return escapeHTML(t) || 'No se pudo guardar el producto. Revisa los campos.';
 }
 
 // Evita que un nombre o comentario con < > rompa la tabla
@@ -18,6 +81,7 @@ function escapeHTML(str) {
 let currentImages = [];
 let brands = [], categories = [];
 let orderItemsByOrder = {};
+let subiendoImagenes = 0;
 
 async function checkAuth() {
   const res = await fetch('/admin/me');
@@ -496,9 +560,20 @@ async function refrescarSelects(tipo, nuevoId) {
 function openModal(product) {
   const form = document.getElementById('product-form');
   form.reset();
+  hideModalError();
   document.querySelectorAll('.alta-panel').forEach(p => { p.style.display = 'none'; });
   currentImages = [];
-  document.getElementById('modal-title').textContent = product ? 'Editar producto' : 'Nuevo producto';
+  subiendoImagenes = 0;
+
+  // CRÍTICO: form.reset() NO limpia los campos ocultos.
+  // Al asignarle un valor por JS a un input[type=hidden], ese valor pasa a ser
+  // su valor por defecto, así que reset() lo deja igual. Si no se limpia a mano,
+  // el id del último producto editado se queda pegado y "Nuevo producto" termina
+  // SOBRESCRIBIENDO ese producto en vez de crear uno.
+  if (form.elements['id']) form.elements['id'].value = product ? product.id : '';
+
+  document.getElementById('modal-title').textContent =
+    product ? `Editar producto — ${product.name}` : 'Nuevo producto';
 
   if (product) {
     for (const key of Object.keys(product)) {
@@ -509,6 +584,7 @@ function openModal(product) {
   }
 
   renderImagePreview();
+  actualizarEstadoGuardar();
   document.getElementById('product-modal').classList.add('open');
 }
 
@@ -562,22 +638,73 @@ function renderImagePreview() {
   });
 }
 
+// Bloquea el botón Guardar mientras haya fotos subiendo.
+// Sin esto, si se le da Guardar antes de que terminen, el producto se guarda
+// con la lista de imágenes vacía y parece que "no se subieron las fotos".
+function actualizarEstadoGuardar() {
+  const form = document.getElementById('product-form');
+  const btn = form && form.querySelector('button[type="submit"]');
+  if (!btn) return;
+
+  if (subiendoImagenes > 0) {
+    btn.disabled = true;
+    btn.dataset.textoOriginal = btn.dataset.textoOriginal || btn.textContent;
+    btn.textContent = 'Subiendo fotos...';
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.textoOriginal) btn.textContent = btn.dataset.textoOriginal;
+  }
+}
+
 async function handleImageUpload(files) {
   if (!files.length) return;
+
   const formData = new FormData();
   for (const f of files) formData.append('images', f);
-  const res = await fetch('/admin/upload', { method: 'POST', body: formData });
-  const data = await res.json();
-  const input = document.getElementById('image-input');
-  if (input) input.value = ''; // permite volver a subir el mismo archivo
-  if (!res.ok) return showError(data.error);
-  currentImages = currentImages.concat(data.paths);
-  renderImagePreview();
+
+  subiendoImagenes++;
+  actualizarEstadoGuardar();
+
+  const box = document.getElementById('image-preview');
+  let aviso = null;
+  if (box) {
+    aviso = document.createElement('div');
+    aviso.style.cssText = 'width:100%;color:var(--gold);font-size:.8rem;margin-bottom:6px';
+    aviso.textContent = `Subiendo ${files.length} foto(s)... espera a que terminen antes de guardar.`;
+    box.insertBefore(aviso, box.firstChild);
+  }
+
+  try {
+    const res = await fetch('/admin/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    const input = document.getElementById('image-input');
+    if (input) input.value = ''; // permite volver a subir el mismo archivo
+
+    if (!res.ok) {
+      showModalError('<strong>No se pudieron subir las fotos.</strong><br>' + escapeHTML(data.error || ''));
+      return;
+    }
+
+    currentImages = currentImages.concat(data.paths);
+  } catch (err) {
+    showModalError('<strong>Se cortó la subida de las fotos.</strong><br>Revisa tu conexión y vuelve a seleccionarlas.');
+  } finally {
+    subiendoImagenes--;
+    if (aviso && aviso.parentNode) aviso.parentNode.removeChild(aviso);
+    renderImagePreview();
+    actualizarEstadoGuardar();
+  }
 }
 
 async function saveProduct(e) {
   e.preventDefault();
   const form = e.target;
+
+  if (subiendoImagenes > 0) {
+    return showModalError('<strong>Espera un momento:</strong> las fotos todavía se están subiendo. Si guardas ahora, el producto quedaría sin imágenes.');
+  }
+
   const id = form.elements['id'].value;
   const payload = {
     name: form.name.value, sku: form.sku.value, brand_id: +form.brand_id.value, category_id: +form.category_id.value,
@@ -594,11 +721,33 @@ async function saveProduct(e) {
 
   const url = id ? `/admin/products/${id}` : '/admin/products';
   const method = id ? 'PUT' : 'POST';
-  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  const data = await res.json();
-  if (!res.ok) return showError(data.error);
-  closeModal();
-  loadProducts();
+
+  const btn = form.querySelector('button[type="submit"]');
+  const textoBtn = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      // El error se muestra DENTRO de la ventana y no se esconde solo.
+      // El modal queda abierto para no perder lo que ya se escribió.
+      return showModalError(mensajeDeError(data.error));
+    }
+
+    closeModal();
+    loadProducts();
+    showOk(id ? 'Producto actualizado.' : 'Producto creado correctamente.');
+  } catch (err) {
+    showModalError('<strong>No se pudo conectar con el servidor.</strong><br>Revisa tu internet e intenta de nuevo. No se perdió lo que escribiste.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = textoBtn; }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {

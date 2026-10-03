@@ -228,4 +228,24 @@ if (require.main === module) {
   console.log('Base de datos inicializada en', DB_PATH);
 }
 
+// ---------- CONSOLIDACIÓN DEL WAL ----------
+// Sin esto, todo lo que se escribe vive solo en essenza.db-wal y el archivo
+// principal nunca se actualiza. Si el WAL se pierde, se pierde el catálogo.
+
+db.pragma('wal_autocheckpoint = 200');
+
+// Volcado periódico mientras el servidor corre
+setInterval(() => {
+  try { db.pragma('wal_checkpoint(PASSIVE)'); } catch (e) { }
+}, 120000).unref();
+
+// Volcado completo y cierre ordenado cuando Railway reinicia el servicio
+function cerrarLimpio() {
+  try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch (e) { }
+  try { db.close(); } catch (e) { }
+  process.exit(0);
+}
+process.on('SIGTERM', cerrarLimpio);
+process.on('SIGINT', cerrarLimpio);
+
 module.exports = db;
