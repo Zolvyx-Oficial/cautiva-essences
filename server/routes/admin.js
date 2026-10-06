@@ -6,6 +6,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
+const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 const db = require('../db');
@@ -14,15 +15,65 @@ const { sendPasswordResetEmail } = require('../utils/email');
 const { requireAdmin } = require('../middleware/auth');
 
 // --- Subida de imágenes de producto ---
+// Las fotos llegan a memoria, se comprimen y recién ahí se guardan en disco.
+// Una foto de celular pasa de ~3 MB a ~200 KB sin que se note la diferencia en
+// pantalla: el volumen dura muchísimo más y la tienda carga mucho más rápido.
 const uploadDir = path.join(__dirname, '..', '..', 'data', 'products');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const MAX_DIM = 1400;        // lado máximo en píxeles
+const CALIDAD = 82;          // calidad de compresión
+const MAX_SUBIDA = 20 * 1024 * 1024; // lo que se acepta recibir, antes de comprimir
+
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.]/g, '_')}`)
-  }),
-  limits: { fileSize: 5 * 1024 * 1024 }
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_SUBIDA }
 });
+
+// Envuelve a multer para devolver errores en JSON.
+// Sin esto, una foto demasiado pesada hacía que Express respondiera una página
+// HTML de error y el panel mostraba "se cortó la subida" sin decir por qué.
+function recibirImagenes(req, res, next) {
+  upload.array('images', 6)(req, res, (err) => {
+    if (err) {
+      const msg = err.code === 'LIMIT_FILE_SIZE'
+        ? 'Alguna foto pesa más de 20 MB. Reduce su tamaño e inténtalo de nuevo.'
+        : 'No se pudieron recibir las fotos: ' + err.message;
+      return res.status(400).json({ error: msg });
+    }
+    next();
+  });
+}
+
+async function guardarImagenComprimida(file) {
+  const extOriginal = path.extname(file.originalname || '').toLowerCase();
+  const nombreBase = path.parse(file.originalname || 'foto').name
+    .replace(/[^a-zA-Z0-9]/g, '_')
+    .slice(0, 40) || 'foto';
+
+  let pipeline = sharp(file.buffer, { failOn: 'error' })
+    .rotate() // respeta la orientación de la foto del celular
+    .resize({ width: MAX_DIM, height: MAX_DIM, fit: 'inside', withoutEnlargement: true });
+
+  let ext;
+  if (extOriginal === '.png') {
+    pipeline = pipeline.png({ compressionLevel: 9 });
+    ext = '.png';
+  } else if (extOriginal === '.webp') {
+    pipeline = pipeline.webp({ quality: CALIDAD });
+    ext = '.webp';
+  } else {
+    // Todo lo demás (incluido el HEIC del iPhone, que los navegadores no muestran)
+    // sale como JPEG, que se ve en cualquier dispositivo.
+    pipeline = pipeline.jpeg({ quality: CALIDAD, mozjpeg: true });
+    ext = '.jpeg';
+  }
+
+  const buffer = await pipeline.toBuffer();
+  const nombre = `${Date.now()}-${Math.round(Math.random() * 1e6)}-${nombreBase}${ext}`;
+  fs.writeFileSync(path.join(uploadDir, nombre), buffer);
+  return `/img/products/${nombre}`;
+}
 
 // POST /admin/login
 router.post('/login', (req, res) => {
@@ -181,9 +232,33 @@ router.delete('/products/:id', (req, res) => {
 });
 
 // POST /admin/upload — Subida de imágenes (galería de producto)
-router.post('/upload', upload.array('images', 6), (req, res) => {
-  const paths = (req.files || []).map(f => `/img/products/${f.filename}`);
-  res.json({ paths });
+router.post('/upload', recibirImagenes, async (req, res) => {
+  const archivos = req.files || [];
+  if (archivos.length === 0) return res.json({ paths: [] });
+
+  const paths = [];
+  const fallidas = [];
+
+  for (const f of archivos) {
+    try {
+      paths.push(await guardarImagenComprimida(f));
+    } catch (err) {
+      console.error('No se pudo procesar la imagen', f.originalname, '-', err.message);
+      fallidas.push(f.originalname);
+    }
+  }
+
+  if (paths.length === 0) {
+    return res.status(400).json({
+      error: 'No se pudo procesar ninguna de las fotos. Revisa que sean imágenes válidas (JPG, PNG o WEBP).'
+    });
+  }
+
+  res.json({
+    paths,
+    fallidas,
+    aviso: fallidas.length ? `No se pudieron procesar: ${fallidas.join(', ')}` : undefined
+  });
 });
 
 // ---------- PEDIDOS ----------

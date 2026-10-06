@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
-    "seed": "node server/db.js --seed"
+    "seed": "node server/db.js --seed",
+    "comprimir": "node compress-images.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -22,7 +23,8 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "pdfkit": "^0.15.0",
-    "resend": "^6.28.1"
+    "resend": "^6.28.1",
+    "sharp": "^0.34.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"
