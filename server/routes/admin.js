@@ -75,13 +75,50 @@ async function guardarImagenComprimida(file) {
   return `/img/products/${nombre}`;
 }
 
+// --- Límite de intentos de inicio de sesión ---
+// Sin esto se pueden probar contraseñas sin freno hasta dar con la correcta.
+const INTENTOS_MAX = 8;
+const VENTANA_MS = 15 * 60 * 1000; // 15 minutos
+const intentos = new Map(); // ip -> { n, hasta }
+
+function limpiarIntentosViejos() {
+  const ahora = Date.now();
+  for (const [ip, dato] of intentos) if (dato.hasta < ahora) intentos.delete(ip);
+}
+setInterval(limpiarIntentosViejos, 10 * 60 * 1000).unref();
+
+function ipDe(req) {
+  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'desconocida';
+}
+
+function limitarIntentos(req, res, next) {
+  const ip = ipDe(req);
+  const dato = intentos.get(ip);
+  if (dato && dato.hasta > Date.now() && dato.n >= INTENTOS_MAX) {
+    const minutos = Math.ceil((dato.hasta - Date.now()) / 60000);
+    return res.status(429).json({
+      error: `Demasiados intentos fallidos. Espera ${minutos} minuto(s) e inténtalo de nuevo.`
+    });
+  }
+  next();
+}
+
+function registrarFallo(req) {
+  const ip = ipDe(req);
+  const dato = intentos.get(ip);
+  if (dato && dato.hasta > Date.now()) dato.n++;
+  else intentos.set(ip, { n: 1, hasta: Date.now() + VENTANA_MS });
+}
+
 // POST /admin/login
-router.post('/login', (req, res) => {
+router.post('/login', limitarIntentos, (req, res) => {
   const { email, password } = req.body;
   const user = db.prepare('SELECT * FROM admin_users WHERE email = ?').get(email);
   if (!user || !bcrypt.compareSync(password || '', user.password_hash)) {
+    registrarFallo(req);
     return res.status(401).json({ error: 'Credenciales inválidas.' });
   }
+  intentos.delete(ipDe(req)); // entró bien: se limpia el contador
   const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '8h' });
   res.cookie('essenza_admin_token', token, {
     httpOnly: true,

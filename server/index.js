@@ -15,7 +15,14 @@ const wompiRoutes = require('./routes/wompi');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// La tienda y la API viven en el mismo dominio, así que no hace falta abrir CORS
+// a todo internet. En local se deja abierto para poder probar cómodo.
+app.use(cors(
+  process.env.APP_URL && process.env.NODE_ENV === 'production'
+    ? { origin: process.env.APP_URL, credentials: true }
+    : undefined
+));
+app.set('trust proxy', 1); // Railway va detrás de un proxy: necesario para ver la IP real
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -55,6 +62,6 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n✨ Essenza Studio corriendo en http://localhost:${PORT}`);
+  console.log(`\n✨ Cautiva Essences corriendo en http://localhost:${PORT}`);
   console.log(`   Panel admin: http://localhost:${PORT}/admin/login.html\n`);
 });

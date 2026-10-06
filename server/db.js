@@ -107,6 +107,9 @@ CREATE TABLE IF NOT EXISTS reviews (
 try { db.exec(`ALTER TABLE products ADD COLUMN compare_at_price INTEGER`); } catch (e) { /* ya existe, ignorar */ }
 try { db.exec(`ALTER TABLE admin_users ADD COLUMN reset_token_hash TEXT`); } catch (e) { /* ya existe, ignorar */ }
 try { db.exec(`ALTER TABLE admin_users ADD COLUMN reset_token_expires TEXT`); } catch (e) { /* ya existe, ignorar */ }
+// Marca si a un pedido ya se le descontó el inventario, para no descontarlo dos veces
+// cuando WOMPI reenvía el mismo evento (lo hace varias veces si no respondemos rápido).
+try { db.exec(`ALTER TABLE orders ADD COLUMN stock_descontado INTEGER NOT NULL DEFAULT 0`); } catch (e) { /* ya existe, ignorar */ }
 
 // ---------- SEED ----------
 function seed() {

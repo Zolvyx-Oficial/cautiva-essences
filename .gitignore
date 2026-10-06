@@ -3,6 +3,7 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+data/products/
 .env
 public/img/products/*
 !public/img/products/.gitkeep
